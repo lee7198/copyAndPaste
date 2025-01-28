@@ -79,6 +79,7 @@ class UIManager:
 
     def refresh_listbox(self):
         self.data_list_ctrl.Clear()  # 기존 항목 지우기
+        self.data_manager.refresh_data()
         for key, value in self.data_manager.get_items():
             self.data_list_ctrl.Append(f"{key} {value}")  # 새로운 항목 추가
 
@@ -99,6 +100,14 @@ class UIManager:
 
     def on_save(self, event):
         # 이벤트 핸들러 구현
+        print('save!')
+        print(self.key_text.GetValue(), self.value_text.GetValue())
+        self.data_manager.add_item(
+            self.key_text.GetValue(), 
+            self.value_text.GetValue()
+        )
+        # self.data_
+        self.refresh_listbox()
         pass
 
     # def on_key_down(self, event):
