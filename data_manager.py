@@ -22,8 +22,13 @@ class DataManager:
         return data
 
     def save_data(self):
-        with open(self.json_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=2)
+        try:
+            with open(self.json_file, 'w', encoding='utf-8') as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"데이터 저장 중 오류 발생: {e}")
+            return False
 
     def add_item(self, key, value):
         self.data[key] = value

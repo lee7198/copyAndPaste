@@ -8,53 +8,59 @@ class UIManager:
         self.setup_event_handlers()
 
     def init_ui(self):
+        fix_width = 220
         self.frame = wx.Frame(None, title="copyAndPaste")
-        self.frame.SetSize(200, 500)
-        self.frame.SetPosition(wx.Point(0, 0))  # 창을 좌측 상단에 위치시킴
-        self.panel = wx.Panel(self.frame)
+        self.frame.SetSize(fix_width, 500)
+        self.frame.SetMinSize((fix_width, -1))  # 최소 너비를 200픽셀로 설정
+        self.frame.SetPosition(wx.Point(50, 150))  # 창을 좌측 상단에 위치시킴
+        self.main_panel = wx.Panel(self.frame)  # 메인 패널
+        
+        # 입력 필드를 위한 패널 (z-index 효과를 위해 별도 패널 사용)
+        self.input_panel = wx.Panel(self.main_panel)
+        self.input_panel.Hide()  # 초기에 숨김
         
         self.init_controls()
         self.layout_controls()
         self.frame.Show()
 
+        # 키 이벤트 바인딩
+        # self.frame.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+
     def init_controls(self):
+        fix_width = 100
         # 입력 필드 초기화
-        self.key_text = wx.TextCtrl(self.panel, size=(200, -1), style=wx.TE_PROCESS_ENTER)
-        self.value_text = wx.TextCtrl(self.panel, size=(200, -1), style=wx.TE_PROCESS_ENTER)
+        self.key_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1), style=wx.TE_PROCESS_ENTER)
+        self.value_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1), style=wx.TE_PROCESS_ENTER)
         
         # 버튼 초기화
-        self.add_button = wx.Button(self.panel, label="Add")
-        self.save_button = wx.Button(self.panel, label="Save")
+        self.add_button = wx.Button(self.main_panel, label="Add")
+        self.save_button = wx.Button(self.input_panel, label="Save")
         
         # 리스트 박스 초기화
-        self.data_list_ctrl = wx.ListBox(self.panel)
+        self.data_list_ctrl = wx.ListBox(self.main_panel)
         
         # 초기 상태 설정
-        self.hide_input_fields()  # 입력란과 Save 버튼 숨기기
-        self.add_button.Show()  # Add 버튼은 항상 보이기
         self.refresh_listbox()
 
     def layout_controls(self):
-        # 메인 수직 레이아웃
+        # 메인 패널 레이아웃
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         
-        # 입력 필드와 리스트 박스를 위한 수직 레이아웃
-        content_sizer = wx.BoxSizer(wx.VERTICAL)
-        content_sizer.Add(self.key_text, 0, wx.ALL | wx.EXPAND, 5)
-        content_sizer.Add(self.value_text, 0, wx.ALL | wx.EXPAND, 5)
-        content_sizer.Add(self.data_list_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-        content_sizer.Add(self.save_button, 0, wx.ALL, 5)  # Save 버튼 추가
+        # 메인 패널에 컨트롤 추가
+        main_sizer.Add(self.data_list_ctrl, 1, wx.EXPAND | wx.ALL, 5)
+        main_sizer.Add(self.input_panel, 0, wx.EXPAND)  # 입력 패널 추가
+        main_sizer.Add(self.add_button, 0, wx.ALL | wx.EXPAND, 5)
+        self.main_panel.SetSizer(main_sizer)
         
-        # Add 버튼을 하단 우측에 배치하기 위한 수평 레이아웃
-        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        button_sizer.AddStretchSpacer()  # 왼쪽 공간을 채움
-        button_sizer.Add(self.add_button, 0, wx.ALL, 5)  # Add 버튼 추가
+        # 입력 패널 레이아웃
+        input_sizer = wx.BoxSizer(wx.VERTICAL)
+        input_box = wx.BoxSizer(wx.HORIZONTAL)
+        input_box.Add(self.key_text, 0, wx.ALL | wx.EXPAND, 5)
+        input_box.Add(self.value_text, 0, wx.ALL | wx.EXPAND, 5)
+        input_sizer.Add(input_box, 0, wx.EXPAND)
+        input_sizer.Add(self.save_button, 0, wx.ALL | wx.EXPAND, 5)
+        self.input_panel.SetSizer(input_sizer)
         
-        # 메인 레이아웃에 컨텐츠와 버튼 추가
-        main_sizer.Add(content_sizer, 1, wx.EXPAND)
-        main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.BOTTOM, 5)
-        
-        self.panel.SetSizer(main_sizer)
 
     def hide_input_fields(self):
         self.key_text.Hide()
@@ -68,7 +74,7 @@ class UIManager:
         self.key_text.SetFocus()
 
     def init_listbox(self):
-        self.data_list_ctrl = wx.ListBox(self.panel)
+        self.data_list_ctrl = wx.ListBox(self.main_panel)
         self.refresh_listbox()  # 데이터를 로드하고 표시
 
     def refresh_listbox(self):
@@ -78,13 +84,25 @@ class UIManager:
 
     def setup_event_handlers(self):
         # 이벤트 핸들러 설정
-        self.add_button.Bind(wx.EVT_BUTTON, self.on_add)
+        self.add_button.Bind(wx.EVT_BUTTON, self.on_add_button_click)
         self.save_button.Bind(wx.EVT_BUTTON, self.on_save)
 
-    def on_add(self, event):
-        # 이벤트 핸들러 구현
-        pass
+    def on_add_button_click(self, event):
+        if self.input_panel.IsShown():  # 입력 패널이 보이는 상태라면
+            self.input_panel.Hide()  # 입력 패널 숨기기
+            self.add_button.SetLabel("Add")  # 버튼 텍스트 변경
+        else:  # 입력 패널이 숨겨진 상태라면
+            self.input_panel.Show()  # 입력 패널 보이기
+            self.add_button.SetLabel("Cancel")  # 버튼 텍스트 변경
+            self.key_text.SetFocus()  # key 입력란에 포커스 설정
+        self.main_panel.Layout()  # 레이아웃 갱신
 
     def on_save(self, event):
         # 이벤트 핸들러 구현
-        pass 
+        pass
+
+    # def on_key_down(self, event):
+    #     # Ctrl+W (Windows/Linux) 또는 Cmd+W (macOS) 감지
+    #     if event.GetKeyCode() == ord('W') and (event.ControlDown() or event.CmdDown()):
+    #         self.frame.Close(force=True)  # 프로그램 종료
+    #     event.Skip()  # 다른 이벤트 핸들러도 처리할 수 있도록 이벤트 전파 
