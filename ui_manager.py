@@ -29,7 +29,7 @@ class UIManager:
     def init_controls(self):
         fix_width = 100
         # 입력 필드 초기화
-        self.key_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1), style=wx.TE_PROCESS_ENTER)
+        self.title_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1), style=wx.TE_PROCESS_ENTER)
         self.value_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1), style=wx.TE_PROCESS_ENTER)
         
         # 버튼 초기화
@@ -55,7 +55,7 @@ class UIManager:
         # 입력 패널 레이아웃
         input_sizer = wx.BoxSizer(wx.VERTICAL)
         input_box = wx.BoxSizer(wx.HORIZONTAL)
-        input_box.Add(self.key_text, 0, wx.ALL | wx.EXPAND, 5)
+        input_box.Add(self.title_text, 0, wx.ALL | wx.EXPAND, 5)
         input_box.Add(self.value_text, 0, wx.ALL | wx.EXPAND, 5)
         input_sizer.Add(input_box, 0, wx.EXPAND)
         input_sizer.Add(self.save_button, 0, wx.ALL | wx.EXPAND, 5)
@@ -63,15 +63,15 @@ class UIManager:
         
 
     def hide_input_fields(self):
-        self.key_text.Hide()
+        self.title_text.Hide()
         self.value_text.Hide()
         self.save_button.Hide()
 
     def show_input_fields(self):
-        self.key_text.Show()
+        self.title_text.Show()
         self.value_text.Show()
         self.save_button.Show()
-        self.key_text.SetFocus()
+        self.title_text.SetFocus()
 
     def init_listbox(self):
         self.data_list_ctrl = wx.ListBox(self.main_panel)
@@ -80,8 +80,9 @@ class UIManager:
     def refresh_listbox(self):
         self.data_list_ctrl.Clear()  # 기존 항목 지우기
         self.data_manager.refresh_data()
-        for key, value in self.data_manager.get_items():
-            self.data_list_ctrl.Append(f"{key} {value}")  # 새로운 항목 추가
+        for item in self.data_manager.get_items():
+            value = item["title"] + " : " + item["value"]
+            self.data_list_ctrl.Append(f"{value}")  # 새로운 항목 추가
 
     def setup_event_handlers(self):
         # 이벤트 핸들러 설정
@@ -95,18 +96,21 @@ class UIManager:
         else:  # 입력 패널이 숨겨진 상태라면
             self.input_panel.Show()  # 입력 패널 보이기
             self.add_button.SetLabel("Cancel")  # 버튼 텍스트 변경
-            self.key_text.SetFocus()  # key 입력란에 포커스 설정
+            self.title_text.SetFocus()  # key 입력란에 포커스 설정
         self.main_panel.Layout()  # 레이아웃 갱신
 
+    # save 핸들러
     def on_save(self, event):
-        # 이벤트 핸들러 구현
-        print('save!')
-        print(self.key_text.GetValue(), self.value_text.GetValue())
         self.data_manager.add_item(
-            self.key_text.GetValue(), 
+            self.title_text.GetValue(), 
             self.value_text.GetValue()
         )
-        # self.data_
+        
+        self.title_text.Clear()  # key 텍스트 박스 초기화
+        self.value_text.Clear()  # value 텍스트 박스 초기화
+        self.title_text.SetFocus()  # key 텍스트 박스에 포커스 설정
+        
+        # refresh data
         self.refresh_listbox()
         pass
 
