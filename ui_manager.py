@@ -41,6 +41,9 @@ class UIManager:
         
         # 초기 상태 설정
         self.refresh_listbox()
+        
+        # 리스트박스 click event binding
+        self.data_list_ctrl.Bind(wx.EVT_LISTBOX, self.on_listbox_click)
 
     def layout_controls(self):
         # 메인 패널 레이아웃
@@ -55,7 +58,6 @@ class UIManager:
         # 입력 패널 레이아웃
         input_sizer = wx.BoxSizer(wx.VERTICAL)
         input_box = wx.BoxSizer(wx.HORIZONTAL)
-        # list item
         input_box.Add(self.title_text, 0, wx.ALL | wx.EXPAND, 5)
         input_box.Add(self.value_text, 0, wx.ALL | wx.EXPAND, 5)
         
@@ -85,6 +87,7 @@ class UIManager:
         for item in self.data_manager.get_items():
             value = item["title"] + " : " + item["value"]
             self.data_list_ctrl.Append(f"{value}")  # 새로운 항목 추가
+            
 
     def setup_event_handlers(self):
         # 이벤트 핸들러 설정
@@ -115,6 +118,30 @@ class UIManager:
         # refresh data
         self.refresh_listbox()
         pass
+    
+    def onCopy(self, event):
+        selected_index = self.data_list_ctrl.GetSelection()
+        if selected_index != wx.NOT_FOUND:
+            selected_item = self.data_list_ctrl.GetString(selected_index)
+            print(f"Selected item: {selected_item}")
+            # 여기에 복사 로직을 추가하세요.
+        else:
+            print("No item selected")
+            
+    def on_listbox_click(self, event):
+        selected_index = self.data_list_ctrl.GetSelection()
+        if selected_index != wx.NOT_FOUND:
+            selected_item = self.data_list_ctrl.GetString(selected_index)
+            # "Key : Value" 형식에서 Value만 추출
+            value = selected_item.split(" : ")[-1]
+            
+            # 클립보드에 복사
+            if wx.TheClipboard.Open():
+                wx.TheClipboard.SetData(wx.TextDataObject(value))
+                wx.TheClipboard.Close()
+                wx.MessageBox(f"'{value}'가 클립보드에 복사되었습니다.", "복사 완료", wx.OK | wx.ICON_INFORMATION)
+            else:
+                wx.MessageBox("클립보드에 접근할 수 없습니다.", "오류", wx.OK | wx.ICON_ERROR)
 
     # def on_key_down(self, event):
     #     # Ctrl+W (Windows/Linux) 또는 Cmd+W (macOS) 감지
