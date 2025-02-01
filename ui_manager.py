@@ -55,8 +55,10 @@ class UIManager:
         # 입력 패널 레이아웃
         input_sizer = wx.BoxSizer(wx.VERTICAL)
         input_box = wx.BoxSizer(wx.HORIZONTAL)
+        # list item
         input_box.Add(self.title_text, 0, wx.ALL | wx.EXPAND, 5)
         input_box.Add(self.value_text, 0, wx.ALL | wx.EXPAND, 5)
+        
         input_sizer.Add(input_box, 0, wx.EXPAND)
         input_sizer.Add(self.save_button, 0, wx.ALL | wx.EXPAND, 5)
         self.input_panel.SetSizer(input_sizer)
