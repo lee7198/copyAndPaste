@@ -9,7 +9,7 @@ class UIManager:
 
     def init_ui(self):
         fix_width = 220
-        self.frame = wx.Frame(None, title="copyAndPaste")
+        self.frame = wx.Frame(None, title="복붙")
         self.frame.SetSize(fix_width, 500)
         self.frame.SetMinSize((fix_width, 450))  
         self.frame.SetMaxSize((fix_width, -1))
@@ -151,28 +151,16 @@ class UIManager:
         
     def on_tab_next(self) :
         self.value_text.SetFocus()
-    
-    def onCopy(self, event):
-        selected_index = self.data_list_ctrl.GetSelection()
-        if selected_index != wx.NOT_FOUND:
-            selected_item = self.data_list_ctrl.GetString(selected_index)
-            print(f"Selected item: {selected_item}")
-            # 여기에 복사 로직을 추가하세요.
-        else:
-            print("No item selected")
             
     def on_listbox_click(self, event):
         selected_index = self.data_list_ctrl.GetSelection()
         if selected_index != wx.NOT_FOUND:
             selected_item = self.data_list_ctrl.GetString(selected_index)
-            # "Key : Value" 형식에서 Value만 추출
             value = selected_item.split(" : ")[-1]
             
-            # 클립보드에 복사
             if wx.TheClipboard.Open():
                 wx.TheClipboard.SetData(wx.TextDataObject(value))
                 wx.TheClipboard.Close()
-                # wx.MessageBox(f"'{value}'가 클립보드에 복사되었습니다.", "복사 완료", wx.OK | wx.ICON_INFORMATION)
             else:
                 wx.MessageBox("클립보드에 접근할 수 없습니다.", "오류", wx.OK | wx.ICON_ERROR)
     
