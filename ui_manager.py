@@ -13,12 +13,11 @@ class UIManager:
         self.frame.SetSize(fix_width, 500)
         self.frame.SetMinSize((fix_width, 450))  
         self.frame.SetMaxSize((fix_width, -1))
-        self.frame.SetPosition(wx.Point(50, 150))  # 창을 좌측 상단에 위치시킴
-        self.main_panel = wx.Panel(self.frame)  # 메인 패널
+        self.frame.SetPosition(wx.Point(50, 150))
+        self.main_panel = wx.Panel(self.frame)
         
-        # 입력 필드를 위한 패널 (z-index 효과를 위해 별도 패널 사용)
         self.input_panel = wx.Panel(self.main_panel)
-        self.input_panel.Hide()  # 초기에 숨김
+        self.input_panel.Hide()
         
         self.init_controls()
         self.layout_controls()
@@ -35,7 +34,6 @@ class UIManager:
         
         self.key_text.Bind(wx.EVT_TEXT_ENTER, self.value_text.SetFocus())
         self.value_text.Bind(wx.EVT_TEXT_ENTER, self.on_save)
-        
         
         # 버튼 초기화
         self.add_button = wx.Button(self.main_panel, label="Add")
@@ -114,8 +112,7 @@ class UIManager:
         self.data_manager.refresh_data()
         for item in self.data_manager.get_items():
             value = item["key"] + " : " + item["value"]
-            self.data_list_ctrl.Append(f"{value}")
-            
+            self.data_list_ctrl.Append(f"{value}") 
 
     def setup_event_handlers(self):
         # 이벤트 핸들러 설정
@@ -169,7 +166,6 @@ class UIManager:
         if selected_index != wx.NOT_FOUND:
             self.data_manager.delete_data(selected_index)
             self.refresh_listbox()
-            
             
     # def on_key_down(self, event):
     #     # Ctrl+W (Windows/Linux) 또는 Cmd+W (macOS) 감지

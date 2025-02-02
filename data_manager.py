@@ -32,7 +32,7 @@ class DataManager:
             return True
         except Exception as e:
             print(f"데이터 저장 중 오류 발생: {e}")
-            return False
+            return Falsepip
         
     def refresh_data(self):
         self.data = self.load_data()
