@@ -11,7 +11,7 @@ class UIManager:
         fix_width = 220
         self.frame = wx.Frame(None, title="copyAndPaste")
         self.frame.SetSize(fix_width, 500)
-        self.frame.SetMinSize((fix_width, -1))  # 최소 너비를 200픽셀로 설정
+        self.frame.SetMinSize((fix_width, 450))  
         self.frame.SetPosition(wx.Point(50, 150))  # 창을 좌측 상단에 위치시킴
         self.main_panel = wx.Panel(self.frame)  # 메인 패널
         
@@ -29,8 +29,9 @@ class UIManager:
     def init_controls(self):
         fix_width = 100
         # 입력 필드 초기화
-        self.title_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1), style=wx.TE_PROCESS_ENTER)
+        self.title_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1))
         self.value_text = wx.TextCtrl(self.input_panel, size=(fix_width, -1), style=wx.TE_PROCESS_ENTER)
+        self.value_text.Bind(wx.EVT_TEXT_ENTER, self.on_save)
         
         # 버튼 초기화
         self.add_button = wx.Button(self.main_panel, label="Add")
@@ -61,6 +62,18 @@ class UIManager:
         input_box.Add(self.title_text, 0, wx.ALL | wx.EXPAND, 5)
         input_box.Add(self.value_text, 0, wx.ALL | wx.EXPAND, 5)
         
+        # Labels
+        input_box_title = wx.BoxSizer(wx.HORIZONTAL)
+        title_label = wx.StaticText(self.input_panel, label='KEY', style=wx.ALIGN_CENTER)
+        value_label = wx.StaticText(self.input_panel, label='VALUE', style=wx.ALIGN_CENTER)
+        small_font = wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        title_label.SetFont(small_font)
+        value_label.SetFont(small_font)
+        
+        input_box_title.Add(title_label, 1, wx.ALL | wx.EXPAND, 5, )
+        input_box_title.Add(value_label, 1, wx.ALL | wx.EXPAND, 5)
+        
+        input_sizer.Add(input_box_title, 1, wx.EXPAND)
         input_sizer.Add(input_box, 0, wx.EXPAND)
         input_sizer.Add(self.save_button, 0, wx.ALL | wx.EXPAND, 5)
         self.input_panel.SetSizer(input_sizer)
@@ -139,7 +152,7 @@ class UIManager:
             if wx.TheClipboard.Open():
                 wx.TheClipboard.SetData(wx.TextDataObject(value))
                 wx.TheClipboard.Close()
-                wx.MessageBox(f"'{value}'가 클립보드에 복사되었습니다.", "복사 완료", wx.OK | wx.ICON_INFORMATION)
+                # wx.MessageBox(f"'{value}'가 클립보드에 복사되었습니다.", "복사 완료", wx.OK | wx.ICON_INFORMATION)
             else:
                 wx.MessageBox("클립보드에 접근할 수 없습니다.", "오류", wx.OK | wx.ICON_ERROR)
 
