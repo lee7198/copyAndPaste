@@ -37,9 +37,14 @@ class DataManager:
     def refresh_data(self):
         self.data = self.load_data()
 
-    def add_item(self, title, value):
-        self.data["list"].append({"title": title, "value": value})
+    def add_item(self, key, value):
+        self.data["list"].append({"key": key, "value": value})
         self.save_data()
 
     def get_items(self):
         return self.data["list"]
+    
+    def delete_data(self, index):
+        if 0 <= index < len(self.data["list"]):
+            del self.data["list"][index]
+            self.save_data()
