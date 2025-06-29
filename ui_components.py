@@ -41,57 +41,62 @@ class RoundedPanel(wx.Panel):
 
 
 class StatusFrame(wx.Frame):
-    """상태 메시지를 표시하는 프레임"""
+    """상태 메시지를 표시하는 프레임 (더 예쁘고 현대적으로 개선, 프레임 전체 둥글게 기능 제거)"""
 
     def __init__(self, parent: wx.Frame, message: str, font_size: int = 15):
+        from constants import (
+            STATUS_FRAME_WIDTH,
+            STATUS_FRAME_HEIGHT,
+            STATUS_PANEL_RADIUS,
+        )
+
         super().__init__(
             parent,
             title="",
-            size=(80, 30),
+            size=(STATUS_FRAME_WIDTH + 40, STATUS_FRAME_HEIGHT),
             style=wx.FRAME_NO_TASKBAR | wx.STAY_ON_TOP | wx.BORDER_NONE,
         )
-
+        self.SetTransparent(230)  # 반투명 효과 (0~255)
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.parent = parent
         self.message = message
         self.font_size = font_size
-
+        self.radius = STATUS_PANEL_RADIUS + 10
         self._init_ui()
         self._position_frame()
 
     def _init_ui(self):
-        """UI 초기화"""
-        status_panel = RoundedPanel(self, radius=STATUS_PANEL_RADIUS)
-        status_text = wx.StaticText(status_panel, label=self.message)
-
-        # 시스템 폰트 사용
+        panel = wx.Panel(self)
+        panel.SetBackgroundColour(ThemeManager.get_primary_color())
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        status_text = wx.StaticText(panel, label=self.message, style=wx.ALIGN_CENTER)
         status_font = wx.Font(
             self.font_size,
-            wx.FONTFAMILY_DEFAULT,
+            wx.FONTFAMILY_SWISS,
             wx.FONTSTYLE_NORMAL,
             wx.FONTWEIGHT_BOLD,
         )
         status_text.SetFont(status_font)
-
-        # 배경색과 텍스트 색상 설정
-        status_panel.SetBackgroundColour(ThemeManager.get_primary_color())
-        status_text.SetForegroundColour(wx.Colour(255, 255, 255))  # 흰색 텍스트
-
-        # 레이아웃 - 패널을 프레임 전체에 맞춤
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(status_text, 1, wx.ALL | wx.ALIGN_CENTER, 5)
-        status_panel.SetSizer(sizer)
+        status_text.SetForegroundColour(wx.Colour(255, 255, 255))
+        # 패딩과 중앙정렬 (패딩을 3으로 줄임)
+        inner_sizer = wx.BoxSizer(wx.VERTICAL)
+        inner_sizer.AddStretchSpacer(1)
+        inner_sizer.Add(status_text, 0, wx.ALIGN_CENTER | wx.ALL, 3)
+        inner_sizer.AddStretchSpacer(1)
+        panel.SetSizer(inner_sizer)
+        sizer.Add(panel, 1, wx.EXPAND | wx.ALL, 0)
+        self.SetSizer(sizer)
+        self.panel = panel
 
     def _position_frame(self):
-        """프레임 위치 설정"""
         from constants import STATUS_FRAME_WIDTH, STATUS_OFFSET_Y
 
         frame_pos = self.parent.GetPosition()
         frame_size = self.parent.GetSize()
-        x = frame_pos[0] + (frame_size[0] - STATUS_FRAME_WIDTH) // 2
+        x = frame_pos[0] + (frame_size[0] - self.GetSize()[0]) // 2
         y = frame_pos[1] + STATUS_OFFSET_Y
         self.SetPosition((x, y))
 
     def show_temporarily(self, duration: int = 2000):
-        """일정 시간 동안 표시 후 자동으로 닫기"""
         self.Show()
         wx.CallLater(duration, self.Close)

@@ -18,6 +18,7 @@ from constants import (
     LABEL_FONT_SIZE_OFFSET,
     PANEL_MARGIN,
     STATUS_DISPLAY_TIME,
+    STATUS_FRAME_HEIGHT,
 )
 from theme_manager import ThemeManager
 from ui_components import StatusFrame
@@ -126,7 +127,8 @@ class UIManager:
     ):
         self.app = app
         self.data_manager = data_manager
-        self.font_size = font_size
+        # 폰트 크기를 data_manager에서 읽어옴
+        self.font_size = self.data_manager.get_font_size()
         self.selected_index: Optional[int] = None
         self.is_edit_mode = False
 
@@ -137,10 +139,12 @@ class UIManager:
         self.key_text: Optional[wx.TextCtrl] = None
         self.value_text: Optional[wx.TextCtrl] = None
         self.add_button: Optional[wx.Button] = None
+        self.new_button: Optional[wx.Button] = None
         self.save_button: Optional[wx.Button] = None
         self.delete_button: Optional[wx.Button] = None
         self.data_list_ctrl: Optional[wx.ListCtrl] = None
         self.font: Optional[wx.Font] = None
+        self.status_frame = None
 
         self.init_ui()
         self.setup_event_handlers()
@@ -210,13 +214,22 @@ class UIManager:
 
     def _init_buttons(self) -> None:
         """버튼들 초기화"""
+        BUTTON_WIDTH = int(WINDOW_WIDTH / 3)
+        BUTTON_HEIGHT = 30
         self.add_button = wx.Button(self.main_panel, label="Add", style=wx.BORDER_NONE)
+        self.new_button = wx.Button(self.input_panel, label="New", style=wx.BORDER_NONE)
         self.save_button = wx.Button(
             self.input_panel, label="Save", style=wx.BORDER_NONE
         )
         self.delete_button = wx.Button(
             self.input_panel, label="Delete", style=wx.BORDER_NONE
         )
+
+        # 버튼 크기를 강제로 고정
+        for btn in [self.new_button, self.save_button, self.delete_button]:
+            btn.SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
+            btn.SetMinSize((BUTTON_WIDTH, BUTTON_HEIGHT))
+            btn.SetMaxSize((BUTTON_WIDTH, BUTTON_HEIGHT))
 
     def _init_list_control(self) -> None:
         """리스트 컨트롤 초기화"""
@@ -225,12 +238,9 @@ class UIManager:
             style=wx.LC_REPORT | wx.BORDER_NONE | wx.LC_SINGLE_SEL,
         )
 
-        # 컬럼 설정
-        key_width = int(WINDOW_WIDTH * KEY_COLUMN_RATIO)
-        value_width = int(WINDOW_WIDTH * VALUE_COLUMN_RATIO)
-
-        self.data_list_ctrl.InsertColumn(0, "KEY", width=key_width)
-        self.data_list_ctrl.InsertColumn(1, "VALUE", width=value_width)
+        # 컬럼 설정 (초기값, 이후 동적으로 조정)
+        self.data_list_ctrl.InsertColumn(0, "KEY", width=100)
+        self.data_list_ctrl.InsertColumn(1, "VALUE", width=100)
 
         colors = ThemeManager.get_theme_colors()
         self.data_list_ctrl.SetBackgroundColour(colors["list_background"])
@@ -238,6 +248,7 @@ class UIManager:
 
         # 이벤트 바인딩
         self.data_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_listctrl_click)
+        self.data_list_ctrl.Bind(wx.EVT_SIZE, self.on_listctrl_resize)
 
     def _init_font(self) -> None:
         """폰트 초기화"""
@@ -303,6 +314,7 @@ class UIManager:
 
         # 버튼 레이아웃
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        button_sizer.Add(self.new_button, 1, wx.ALL | wx.EXPAND, PANEL_MARGIN)
         button_sizer.Add(self.save_button, 1, wx.ALL | wx.EXPAND, PANEL_MARGIN)
         button_sizer.Add(self.delete_button, 1, wx.ALL | wx.EXPAND, PANEL_MARGIN)
 
@@ -312,12 +324,30 @@ class UIManager:
         input_sizer.Add(button_sizer, 0, wx.EXPAND)
         self.input_panel.SetSizer(input_sizer)
 
+        # 입력 패널 리사이즈 이벤트에 버튼 크기 재조정 핸들러 연결
+        self.input_panel.Bind(wx.EVT_SIZE, self._resize_input_buttons)
+
+    def _resize_input_buttons(self, event):
+        total_width = self.input_panel.GetClientSize().GetWidth()
+        button_width = int((total_width - 4 * PANEL_MARGIN) / 3)
+        for btn in [self.new_button, self.save_button, self.delete_button]:
+            btn.SetMinSize((button_width, 30))
+            btn.SetMaxSize((button_width, 30))
+            btn.SetSize(button_width, 30)
+        self.input_panel.Layout()
+        event.Skip()
+
     def _apply_theme(self) -> None:
         """테마 적용"""
         colors = ThemeManager.get_theme_colors()
 
         # 버튼 스타일 적용
-        for btn in [self.add_button, self.save_button, self.delete_button]:
+        for btn in [
+            self.add_button,
+            self.new_button,
+            self.save_button,
+            self.delete_button,
+        ]:
             btn.SetBackgroundColour(colors["primary"])
             btn.SetForegroundColour(wx.WHITE)
             try:
@@ -344,19 +374,55 @@ class UIManager:
     def setup_event_handlers(self) -> None:
         """이벤트 핸들러 설정"""
         self.add_button.Bind(wx.EVT_BUTTON, self.on_add_button_click)
+        self.new_button.Bind(wx.EVT_BUTTON, self.on_new_button_click)
         self.save_button.Bind(wx.EVT_BUTTON, self.on_save)
         self.delete_button.Bind(wx.EVT_BUTTON, self.on_delete)
 
+    def on_listctrl_resize(self, event):
+        """리스트 컨트롤 크기 변경 시 컬럼 너비를 동적으로 조정"""
+        total_width = self.data_list_ctrl.GetClientSize().GetWidth()
+        key_width = int(total_width * KEY_COLUMN_RATIO)
+        value_width = total_width - key_width
+        self.data_list_ctrl.SetColumnWidth(0, key_width)
+        self.data_list_ctrl.SetColumnWidth(1, value_width)
+        event.Skip()
+
     def refresh_listctrl(self) -> None:
-        """리스트 컨트롤 새로고침"""
+        """리스트 컨트롤 새로고침 (가로 스크롤 없이, VALUE는 ... 처리)"""
         self.data_list_ctrl.DeleteAllItems()
         self.data_manager.refresh_data()
+
+        # 컬럼 너비 측정 (항상 최신 크기로)
+        total_width = self.data_list_ctrl.GetClientSize().GetWidth()
+        key_width = int(total_width * KEY_COLUMN_RATIO)
+        value_col_width = total_width - key_width
+        self.data_list_ctrl.SetColumnWidth(0, key_width)
+        self.data_list_ctrl.SetColumnWidth(1, value_col_width)
+        dc = wx.ClientDC(self.data_list_ctrl)
+        dc.SetFont(self.data_list_ctrl.GetFont())
 
         for item in self.data_manager.get_items():
             idx = self.data_list_ctrl.InsertItem(
                 self.data_list_ctrl.GetItemCount(), item["key"]
             )
-            self.data_list_ctrl.SetItem(idx, 1, item["value"])
+            value = item["value"]
+            # 텍스트 픽셀 길이 측정
+            text_width, _ = dc.GetTextExtent(value)
+            if text_width > value_col_width - 10:
+                # ...을 붙여서 잘라내기
+                ellipsis = "..."
+                max_width = value_col_width - dc.GetTextExtent(ellipsis)[0] - 10
+                short_value = ""
+                for ch in value:
+                    w, _ = dc.GetTextExtent(short_value + ch)
+                    if w > max_width:
+                        break
+                    short_value += ch
+                value = short_value + ellipsis
+            self.data_list_ctrl.SetItem(idx, 1, value)
+
+        # 가로 스크롤바가 나오지 않도록 스타일을 강제
+        self.data_list_ctrl.SetScrollbar(wx.HORIZONTAL, 0, 0, 0, True)
 
     def on_add_button_click(self, event) -> None:
         """Add 버튼 클릭 이벤트"""
@@ -370,6 +436,14 @@ class UIManager:
             self.add_button.SetLabel("Cancel")
             self.key_text.SetFocus()
         self.main_panel.Layout()
+
+    def on_new_button_click(self, event) -> None:
+        """New 버튼 클릭 시 입력창을 비우고 새 항목 추가 모드로 전환"""
+        self.key_text.SetValue("")
+        self.value_text.SetValue("")
+        self.selected_index = None
+        self.is_edit_mode = False
+        self.key_text.SetFocus()
 
     def on_save(self, event) -> None:
         """Save 버튼 클릭 이벤트"""
@@ -448,5 +522,11 @@ class UIManager:
 
     def show_copy_status(self, message: str) -> None:
         """복사 상태 메시지 표시"""
-        status_frame = StatusFrame(self.frame, message, self.font_size)
-        status_frame.show_temporarily(STATUS_DISPLAY_TIME)
+        if self.status_frame is not None:
+            try:
+                self.status_frame.Close()
+            except Exception:
+                pass
+            self.status_frame = None
+        self.status_frame = StatusFrame(self.frame, message, self.font_size)
+        self.status_frame.show_temporarily(STATUS_DISPLAY_TIME)
