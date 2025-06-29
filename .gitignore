@@ -21,32 +21,34 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
-.venv/
+# Virtual environments
 venv/
-ENV/
 env/
-bin/
-include/
-lib/
-lib64/
-pyvenv.cfg
-pip-selfcheck.json
+ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*.sublime-workspace
-*.sublime-project
+*~
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Data
+# Application specific
 data.json
+*.log
+
+# Data
 *.db
 *.sqlite3
 
