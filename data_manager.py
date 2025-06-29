@@ -48,3 +48,8 @@ class DataManager:
         if 0 <= index < len(self.data["list"]):
             del self.data["list"][index]
             self.save_data()
+
+    def update_item(self, index, key, value):
+        if 0 <= index < len(self.data["list"]):
+            self.data["list"][index] = {"key": key, "value": value}
+            self.save_data()
