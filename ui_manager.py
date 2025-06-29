@@ -214,9 +214,12 @@ class UIManager:
 
     def _init_buttons(self) -> None:
         """버튼들 초기화"""
-        BUTTON_WIDTH = int(WINDOW_WIDTH / 3)
-        BUTTON_HEIGHT = 30
-        self.add_button = wx.Button(self.main_panel, label="Add", style=wx.BORDER_NONE)
+        BUTTON_HEIGHT = 28
+        self.add_button = wx.Button(
+            self.main_panel, label="Add", style=wx.BORDER_NONE, size=(-1, BUTTON_HEIGHT)
+        )
+        self.add_button.SetMinSize((-1, BUTTON_HEIGHT))
+        self.add_button.SetMaxSize((-1, BUTTON_HEIGHT))
         self.new_button = wx.Button(self.input_panel, label="New", style=wx.BORDER_NONE)
         self.save_button = wx.Button(
             self.input_panel, label="Save", style=wx.BORDER_NONE
@@ -225,11 +228,20 @@ class UIManager:
             self.input_panel, label="Delete", style=wx.BORDER_NONE
         )
 
-        # 버튼 크기를 강제로 고정
+        # 버튼들 높이 맞추기
         for btn in [self.new_button, self.save_button, self.delete_button]:
-            btn.SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
-            btn.SetMinSize((BUTTON_WIDTH, BUTTON_HEIGHT))
-            btn.SetMaxSize((BUTTON_WIDTH, BUTTON_HEIGHT))
+            btn.SetMinSize((-1, BUTTON_HEIGHT))
+            btn.SetMaxSize((-1, BUTTON_HEIGHT))
+            btn.SetSize(-1, BUTTON_HEIGHT)
+
+        # 입력 필드 높이도 맞추고 싶으면
+        INPUT_FIELD_HEIGHT = 20
+        self.key_text.SetMinSize((-1, INPUT_FIELD_HEIGHT))
+        self.value_text.SetMinSize((-1, INPUT_FIELD_HEIGHT))
+        self.key_text.SetMaxSize((-1, INPUT_FIELD_HEIGHT))
+        self.value_text.SetMaxSize((-1, INPUT_FIELD_HEIGHT))
+        self.key_text.SetSize(-1, INPUT_FIELD_HEIGHT)
+        self.value_text.SetSize(-1, INPUT_FIELD_HEIGHT)
 
     def _init_list_control(self) -> None:
         """리스트 컨트롤 초기화"""
@@ -270,7 +282,8 @@ class UIManager:
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         main_sizer.Add(self.data_list_ctrl, 1, wx.EXPAND | wx.ALL, PANEL_MARGIN)
         main_sizer.Add(self.input_panel, 0, wx.EXPAND)
-        main_sizer.Add(self.add_button, 0, wx.ALL | wx.EXPAND, PANEL_MARGIN)
+        main_sizer.Add(self.add_button, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, PANEL_MARGIN)
+        main_sizer.AddSpacer(6)  # Add 버튼 아래 간격
         self.main_panel.SetSizer(main_sizer)
 
         # 입력 패널 레이아웃
@@ -330,10 +343,11 @@ class UIManager:
     def _resize_input_buttons(self, event):
         total_width = self.input_panel.GetClientSize().GetWidth()
         button_width = int((total_width - 4 * PANEL_MARGIN) / 3)
+        button_height = 24
         for btn in [self.new_button, self.save_button, self.delete_button]:
-            btn.SetMinSize((button_width, 30))
-            btn.SetMaxSize((button_width, 30))
-            btn.SetSize(button_width, 30)
+            btn.SetMinSize((button_width, button_height))
+            btn.SetMaxSize((button_width, button_height))
+            btn.SetSize(button_width, button_height)
         self.input_panel.Layout()
         event.Skip()
 
@@ -341,19 +355,22 @@ class UIManager:
         """테마 적용"""
         colors = ThemeManager.get_theme_colors()
 
-        # 버튼 스타일 적용
-        for btn in [
-            self.add_button,
-            self.new_button,
-            self.save_button,
-            self.delete_button,
-        ]:
+        # 일반 버튼들 (Add, New, Save)
+        for btn in [self.add_button, self.new_button, self.save_button]:
             btn.SetBackgroundColour(colors["primary"])
             btn.SetForegroundColour(wx.WHITE)
             try:
                 btn.SetFont(self.font.Bold())
             except Exception:
                 pass
+
+        # Delete 버튼만 다른 색상
+        self.delete_button.SetBackgroundColour(wx.Colour(244, 67, 54))  # 빨간색
+        self.delete_button.SetForegroundColour(wx.WHITE)
+        try:
+            self.delete_button.SetFont(self.font.Bold())
+        except Exception:
+            pass
 
         # 리스트 컨트롤 스타일 적용
         self.data_list_ctrl.SetBackgroundColour(colors["list_background"])
@@ -467,8 +484,9 @@ class UIManager:
                 self.is_edit_mode = False
                 self.refresh_listctrl()
                 self.key_text.SetFocus()
+                self.show_copy_status("✅ 저장됨")
             else:
-                wx.MessageBox("저장에 실패했습니다.", "오류", wx.OK | wx.ICON_ERROR)
+                self.show_copy_status("❌ 저장 실패")
 
     def on_listctrl_click(self, event) -> None:
         """리스트 항목 클릭 이벤트"""
@@ -482,7 +500,7 @@ class UIManager:
         if wx.TheClipboard.Open():
             wx.TheClipboard.SetData(wx.TextDataObject(value))
             wx.TheClipboard.Close()
-            self.show_copy_status("복사 완료")
+            self.show_copy_status("✅ 복사됨")
         else:
             wx.MessageBox(
                 "클립보드에 접근할 수 없습니다.", "오류", wx.OK | wx.ICON_ERROR
@@ -497,8 +515,9 @@ class UIManager:
                 if self.selected_index == selected_index:
                     self.selected_index = None
                     self.is_edit_mode = False
+                self.show_copy_status("🗑️ 삭제됨")
             else:
-                wx.MessageBox("삭제에 실패했습니다.", "오류", wx.OK | wx.ICON_ERROR)
+                self.show_copy_status("❌ 삭제 실패")
 
     def show_input_fields(self) -> None:
         """입력 필드 표시"""

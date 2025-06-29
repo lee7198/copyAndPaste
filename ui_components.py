@@ -67,7 +67,7 @@ class StatusFrame(wx.Frame):
 
     def _init_ui(self):
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(ThemeManager.get_primary_color())
+        panel.SetBackgroundColour(wx.Colour(0, 0, 0, 180))  # 투명 검정
         sizer = wx.BoxSizer(wx.VERTICAL)
         status_text = wx.StaticText(panel, label=self.message, style=wx.ALIGN_CENTER)
         status_font = wx.Font(
@@ -98,5 +98,14 @@ class StatusFrame(wx.Frame):
         self.SetPosition((x, y))
 
     def show_temporarily(self, duration: int = 2000):
+        """일정 시간 동안 표시 후 자동으로 닫기 (안전하게 처리)"""
         self.Show()
-        wx.CallLater(duration, self.Close)
+
+        def safe_close():
+            try:
+                if self and not self.IsBeingDeleted():
+                    self.Close()
+            except Exception:
+                pass
+
+        wx.CallLater(duration, safe_close)
