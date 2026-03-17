@@ -559,8 +559,12 @@ class UIManager:
         self.selected_index = event.GetIndex()
         self.show_input_fields()
 
-        # 클립보드에 복사
-        value = self.data_list_ctrl.GetItem(self.selected_index, 1).GetText()
+        # 클립보드에는 리스트 표시값(...)이 아닌 원본 값을 복사
+        selected_item = self._get_selected_item()
+        if selected_item is None:
+            self.show_copy_status("선택한 항목을 찾을 수 없습니다.", "error")
+            return
+        value = selected_item["value"]
 
         if wx.TheClipboard.Open():
             wx.TheClipboard.SetData(wx.TextDataObject(value))
@@ -591,11 +595,10 @@ class UIManager:
         self.save_button.Show()
 
         # 선택된 항목이 있으면 입력창에 값 채우기
-        if self.selected_index is not None:
-            key = self.data_list_ctrl.GetItemText(self.selected_index)
-            value = self.data_list_ctrl.GetItem(self.selected_index, 1).GetText()
-            self.key_text.SetValue(key)
-            self.value_text.SetValue(value)
+        selected_item = self._get_selected_item()
+        if selected_item is not None:
+            self.key_text.SetValue(selected_item["key"])
+            self.value_text.SetValue(selected_item["value"])
             self.is_edit_mode = True
         else:
             self.key_text.SetValue("")
@@ -603,6 +606,15 @@ class UIManager:
             self.is_edit_mode = False
 
         self.key_text.SetFocus()
+
+    def _get_selected_item(self) -> Optional[dict]:
+        """현재 선택 인덱스의 원본 항목 반환"""
+        if self.selected_index is None:
+            return None
+        items = self.data_manager.get_items()
+        if 0 <= self.selected_index < len(items):
+            return items[self.selected_index]
+        return None
 
     def show_copy_status(self, message: str, status_kind: str = "info") -> None:
         """복사 상태 메시지 표시"""
