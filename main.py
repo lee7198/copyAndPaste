@@ -2,7 +2,8 @@
 복붙 관리 애플리케이션의 메인 모듈입니다.
 """
 
-import wx
+# pylint: disable=broad-exception-caught,no-member
+import wx  # type: ignore[import-untyped]
 import sys
 from typing import Optional
 from data_manager import DataManager

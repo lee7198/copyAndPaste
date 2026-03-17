@@ -3,10 +3,11 @@
 시스템 테마 감지 및 색상 관리를 처리합니다.
 """
 
-import wx
-from typing import Dict, Tuple
+# mypy: ignore-errors
+# pylint: disable=broad-exception-caught,no-member
+import wx  # type: ignore[import-untyped]
+from typing import Dict
 import subprocess
-import sys
 
 
 class ThemeManager:
@@ -30,6 +31,7 @@ class ThemeManager:
                 ["defaults", "read", "-g", "AppleInterfaceStyle"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             return result.stdout.strip() == "Dark"
         except Exception:
@@ -58,21 +60,41 @@ class ThemeManager:
 
         if is_dark:
             return {
-                "primary": wx.Colour(33, 150, 243),  # Material Blue 500
-                "background": wx.Colour(30, 30, 30),  # 어두운 배경
-                "list_background": wx.Colour(45, 45, 45),  # 어두운 리스트 배경
-                "text": wx.Colour(255, 255, 255),  # 흰색 텍스트
-                "input_background": wx.Colour(50, 50, 50),  # 어두운 입력 필드
-                "border": wx.Colour(70, 70, 70),  # 어두운 테두리
+                # Material 3 dark inspired palette
+                "primary": wx.Colour(178, 197, 255),
+                "on_primary": wx.Colour(22, 46, 97),
+                "secondary": wx.Colour(194, 197, 220),
+                "background": wx.Colour(19, 19, 24),
+                "surface": wx.Colour(30, 30, 36),
+                "surface_variant": wx.Colour(45, 46, 56),
+                "list_background": wx.Colour(30, 30, 36),
+                "text": wx.Colour(230, 226, 236),
+                "on_surface": wx.Colour(230, 226, 236),
+                "on_surface_variant": wx.Colour(199, 198, 209),
+                "input_background": wx.Colour(45, 46, 56),
+                "border": wx.Colour(100, 101, 114),
+                "outline": wx.Colour(123, 124, 137),
+                "success": wx.Colour(117, 220, 126),
+                "danger": wx.Colour(255, 180, 171),
             }
         else:
             return {
-                "primary": wx.Colour(33, 150, 243),  # Material Blue 500
-                "background": wx.Colour(250, 250, 250),  # 밝은 배경
-                "list_background": wx.Colour(245, 245, 245),  # 밝은 리스트 배경
-                "text": wx.Colour(0, 0, 0),  # 검은색 텍스트
-                "input_background": wx.Colour(255, 255, 255),  # 흰색 입력 필드
-                "border": wx.Colour(200, 200, 200),  # 밝은 테두리
+                # Material 3 light inspired palette
+                "primary": wx.Colour(64, 95, 168),
+                "on_primary": wx.Colour(255, 255, 255),
+                "secondary": wx.Colour(86, 95, 127),
+                "background": wx.Colour(248, 249, 255),
+                "surface": wx.Colour(255, 255, 255),
+                "surface_variant": wx.Colour(227, 226, 236),
+                "list_background": wx.Colour(255, 255, 255),
+                "text": wx.Colour(28, 27, 31),
+                "on_surface": wx.Colour(28, 27, 31),
+                "on_surface_variant": wx.Colour(72, 70, 79),
+                "input_background": wx.Colour(243, 244, 251),
+                "border": wx.Colour(203, 201, 212),
+                "outline": wx.Colour(120, 118, 128),
+                "success": wx.Colour(31, 123, 54),
+                "danger": wx.Colour(186, 26, 26),
             }
 
     @staticmethod
@@ -89,3 +111,13 @@ class ThemeManager:
     def get_list_background_color() -> wx.Colour:
         """리스트 배경 색상을 반환합니다."""
         return ThemeManager.get_theme_colors()["list_background"]
+
+    @staticmethod
+    def get_status_color(kind: str) -> wx.Colour:
+        """상태 메시지 종류에 맞는 강조 색상을 반환합니다."""
+        colors = ThemeManager.get_theme_colors()
+        if kind == "success":
+            return colors["success"]
+        if kind == "error":
+            return colors["danger"]
+        return colors["primary"]
