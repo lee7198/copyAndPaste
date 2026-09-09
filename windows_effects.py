@@ -1,7 +1,8 @@
-"""Documented Windows 11 22H2 DWM backdrops; no whole-window opacity.
+"""Native blur for an alpha-composited Qt surface.
 
-The blur radius is controlled by Windows. Unsupported systems use opaque panels.
-https://learn.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
+SetWindowCompositionAttribute is an optional Windows API (not a stable public
+contract). Guard availability and fall back to ordinary alpha transparency.
+No negative DWM margins and no opacity changes to text or child controls.
 """
 
 import ctypes
@@ -9,45 +10,40 @@ from ctypes import wintypes
 import sys
 
 
-class Margins(ctypes.Structure):
-    _fields_ = [(name, ctypes.c_int) for name in ("left", "right", "top", "bottom")]
+class Accent(ctypes.Structure):
+    _fields_ = [
+        ("state", ctypes.c_int),
+        ("flags", ctypes.c_int),
+        ("tint", wintypes.DWORD),
+        ("animation", ctypes.c_int),
+    ]
 
 
-def apply_backdrop(handle, mode, dark=False, border_width=12):
-    if sys.platform != "win32" or sys.getwindowsversion().build < 22621:
+class CompositionData(ctypes.Structure):
+    _fields_ = [
+        ("attribute", ctypes.c_int),
+        ("data", ctypes.c_void_p),
+        ("size", ctypes.c_size_t),
+    ]
+
+
+def apply_backdrop(handle, mode, dark=False):
+    if sys.platform != "win32" or sys.getwindowsversion().build < 17763:
         return False
     try:
-        dwm = ctypes.WinDLL("dwmapi")
-        set_attribute = dwm.DwmSetWindowAttribute
-        set_attribute.argtypes = [
-            wintypes.HWND,
-            wintypes.DWORD,
-            ctypes.c_void_p,
-            wintypes.DWORD,
-        ]
-        set_attribute.restype = ctypes.c_long
-        extend = dwm.DwmExtendFrameIntoClientArea
-        extend.argtypes = [wintypes.HWND, ctypes.POINTER(Margins)]
-        extend.restype = ctypes.c_long
-
-        def attribute(number, value):
-            value = ctypes.c_int(value)
-            return (
-                set_attribute(handle, number, ctypes.byref(value), ctypes.sizeof(value))
-                >= 0
-            )
-
-        attribute(20, int(dark))  # DWMWA_USE_IMMERSIVE_DARK_MODE
-        attribute(33, 2)  # DWMWA_WINDOW_CORNER_PREFERENCE: round
-        material = {"off": 1, "mica": 2, "acrylic": 3}.get(mode, 1)
-        enabled = attribute(38, material) and material != 1
-        # Never extend glass across wx/GDI child controls: their paint output
-        # does not provide the alpha channel required for full-client glass.
-        margin = max(0, int(border_width)) if enabled else 0
-        if extend(handle, ctypes.byref(Margins(margin, margin, margin, margin))) < 0:
-            attribute(38, 1)
-            extend(handle, ctypes.byref(Margins(0, 0, 0, 0)))
-            return False
-        return enabled
+        user = ctypes.WinDLL("user32")
+        apply = user.SetWindowCompositionAttribute
+        apply.argtypes = [wintypes.HWND, ctypes.POINTER(CompositionData)]
+        apply.restype = wintypes.BOOL
+        # Acrylic tint must have nonzero alpha. Actual tint/opacity is painted
+        # by Qt so settings remain effective even without this optional API.
+        policy = Accent(
+            {"off": 0, "blur": 3, "acrylic": 4}.get(mode, 0),
+            0,
+            0x01202020 if dark else 0x01F0EFEB,
+            0,
+        )
+        data = CompositionData(19, ctypes.addressof(policy), ctypes.sizeof(policy))
+        return bool(apply(handle, ctypes.byref(data))) and policy.state != 0
     except (OSError, AttributeError):
         return False

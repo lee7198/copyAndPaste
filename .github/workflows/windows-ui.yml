@@ -14,6 +14,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt black==26.5.1
-      - run: python -m black --check appearance.py glass_ui.py settings_dialog.py windows_effects.py data_manager.py theme_manager.py ui_manager.py tests
+      - run: python -m black --check main.py icons.py appearance.py glass_ui.py settings_dialog.py windows_effects.py data_manager.py theme_manager.py ui_manager.py tests
       - run: python -m unittest discover -s tests -p "test_*.py"
       - run: python tests/windows_smoke.py

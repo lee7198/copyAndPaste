@@ -5,21 +5,32 @@ import os
 from pathlib import Path
 import tempfile
 
-DEFAULTS = {"theme": "system", "backdrop": "acrylic", "panel_density": 80}
+DEFAULTS = {
+    "theme": "system",
+    "backdrop": "acrylic",
+    "panel_density": 80,
+    "window_opacity": 52,
+}
 
 
 def normalize(values):
     values = values if isinstance(values, dict) else {}
+    values = values.copy()
+    if values.get("backdrop") == "mica":
+        values["backdrop"] = "blur"
     result = DEFAULTS.copy()
     for key, choices in {
         "theme": ("system", "light", "dark"),
-        "backdrop": ("off", "mica", "acrylic"),
+        "backdrop": ("off", "blur", "acrylic"),
     }.items():
         if values.get(key) in choices:
             result[key] = values[key]
     density = values.get("panel_density")
     if type(density) is int:
         result["panel_density"] = max(50, min(100, density))
+    opacity = values.get("window_opacity")
+    if type(opacity) is int:
+        result["window_opacity"] = max(20, min(90, opacity))
     return result
 
 
