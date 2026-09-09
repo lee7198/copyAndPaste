@@ -65,6 +65,8 @@ class UIManager:
         self._init_controls()
         self._layout_controls()
         self._apply_theme()
+        self.frame.Layout()
+        self.main_panel.Layout()
         self.frame.Show()
         self._apply_backdrop()
 
@@ -217,7 +219,9 @@ class UIManager:
         main_sizer.Add(self.add_button, 0, wx.EXPAND | wx.ALL, margin)
         self.main_panel.SetSizer(main_sizer)
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
-        frame_sizer.Add(self.main_panel, 1, wx.EXPAND)
+        self.content_inset = frame_sizer.Add(
+            self.main_panel, 1, wx.EXPAND | wx.ALL, self.frame.FromDIP(12)
+        )
         self.frame.SetSizer(frame_sizer)
         self._layout_input_panel()
 
@@ -559,16 +563,21 @@ class UIManager:
             ThemeManager.preference == "system" and ThemeManager.is_dark_mode()
         )
         self.backdrop_active = apply_backdrop(
-            self.frame.GetHandle(), self.appearance.values["backdrop"], dark
+            self.frame.GetHandle(),
+            self.appearance.values["backdrop"],
+            dark,
+            border_width=self.frame.FromDIP(12),
         )
-        # Zero RGB GDI background exposes DWM in the gutters between panels.
-        color = (
-            wx.BLACK if self.backdrop_active else ThemeManager.get_background_color()
-        )
-        self.frame.SetBackgroundColour(color)
-        self.main_panel.SetBackgroundColour(color)
-        self.status_label.SetBackgroundColour(ThemeManager.get_background_color())
-        self.main_panel.Refresh()
+        # Only the outer frame gutter participates in DWM glass. Keep the
+        # entire child hierarchy in the ordinary opaque client rectangle.
+        background = ThemeManager.get_background_color()
+        self.frame.SetBackgroundColour(wx.BLACK if self.backdrop_active else background)
+        self.main_panel.SetBackgroundColour(background)
+        self.status_label.SetBackgroundColour(background)
+        self.content_inset.SetBorder(self.frame.FromDIP(12))
+        self.frame.Layout()
+        self.main_panel.Layout()
+        self.frame.Refresh()
 
     def on_activate(self, event):
         self._apply_backdrop()
