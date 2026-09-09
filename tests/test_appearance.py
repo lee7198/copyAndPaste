@@ -90,6 +90,13 @@ class AppearanceTests(unittest.TestCase):
                         with patch("builtins.open", side_effect=OSError("저장 실패")):
                             self.assertFalse(manager.save_data())
 
+    def test_old_mica_settings_migrate_to_blur_with_real_opacity(self):
+        values = normalize({"theme": "dark", "backdrop": "mica", "panel_density": 80})
+        self.assertEqual(values["backdrop"], "blur")
+        self.assertEqual(values["window_opacity"], 52)
+        self.assertEqual(normalize({"window_opacity": 1})["window_opacity"], 20)
+        self.assertEqual(normalize({"window_opacity": 100})["window_opacity"], 90)
+
     def test_unsupported_platform_does_not_load_windows_dll(self):
         with patch("windows_effects.sys.platform", "linux"):
             self.assertFalse(apply_backdrop(0, "acrylic"))

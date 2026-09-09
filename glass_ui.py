@@ -1,124 +1,100 @@
-"""Reusable frosted panels, keyboard accessible buttons and custom caption."""
+"""Alpha-painted window and a caption attached directly to its top edge."""
 
-import wx
-from wx.lib.buttons import GenButton
-from theme_manager import ThemeManager
-
-
-class GlassButton(GenButton):
-    def __init__(self, parent, label, **kwargs):
-        kwargs.pop("style", None)
-        super().__init__(parent, label=label, style=wx.BORDER_NONE, **kwargs)
-        self.SetBezelWidth(1)
-        self.SetMinSize(self.FromDIP((44, 36)))
-        self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
-        self.SetName(label)
-
-    def GetBackgroundBrush(self, dc):
-        return wx.Brush(self.GetParent().GetBackgroundColour())
-
-    def DrawBezel(self, dc, x1, y1, x2, y2):
-        color = self.GetBackgroundColour()
-        if not self.up:
-            color = color.ChangeLightness(90)
-        dc.SetBrush(wx.Brush(color))
-        dc.SetPen(wx.Pen(ThemeManager.get_theme_colors()["border"]))
-        dc.DrawRoundedRectangle(x1, y1, x2 - x1, y2 - y1, self.FromDIP(12))
+from PySide6.QtCore import Qt, QRectF, QSize
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
 
-class GlassPanel(wx.Panel):
-    def __init__(self, parent, **kwargs):
-        super().__init__(parent, **kwargs)
-        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.Bind(wx.EVT_PAINT, self._paint)
-        self.Bind(wx.EVT_SIZE, self._size)
-
-    def _size(self, event):
-        self.Refresh()
-        event.Skip()
-
-    def _paint(self, event):
-        dc = wx.AutoBufferedPaintDC(self)
-        dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
-        dc.Clear()
-        gc = wx.GraphicsContext.Create(dc)
-        if gc:
-            colors = ThemeManager.get_theme_colors()
-            gc.SetBrush(wx.Brush(self.GetBackgroundColour()))
-            gc.SetPen(wx.Pen(colors["border"]))
-            width, height = self.GetClientSize()
-            gc.DrawRoundedRectangle(
-                1, 1, max(0, width - 2), max(0, height - 2), self.FromDIP(18)
-            )
+from icons import icon
 
 
-class GlassFrame(wx.Frame):
+class GlassFrame(QWidget):
     def __init__(self):
-        style = wx.DEFAULT_FRAME_STYLE & ~wx.CAPTION
-        super().__init__(None, title="Copy & Paste", style=style)
-
-
-class TitleBar(GlassPanel):
-    def __init__(self, parent, frame, on_settings):
-        super().__init__(parent)
-        self.frame = frame
-        self.drag_origin = None
-        row = wx.BoxSizer(wx.HORIZONTAL)
-        self.title = wx.StaticText(self, label="Copy & Paste")
-        self.title.SetFont(
-            wx.Font(11, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        super().__init__(
+            None, Qt.Window | Qt.FramelessWindowHint | Qt.WindowMinMaxButtonsHint
         )
-        row.Add(self.title, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, self.FromDIP(14))
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowTitle("Copy & Paste")
+        self.dark = False
+        self.background_opacity = 0.52
+        self.setMinimumSize(340, 540)
+        self.resize(380, 620)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        color = QColor(32, 38, 34) if self.dark else QColor(235, 236, 228)
+        color.setAlphaF(self.background_opacity)
+        painter.setBrush(color)
+        painter.setPen(QPen(QColor(255, 255, 255, 105), 1))
+        painter.drawRoundedRect(
+            QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5),
+            0 if self.isMaximized() else 16,
+            0 if self.isMaximized() else 16,
+        )
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and not self.isMaximized():
+            pos = event.position()
+            edges = Qt.Edges()
+            if pos.x() < 7:
+                edges |= Qt.LeftEdge
+            if pos.x() > self.width() - 7:
+                edges |= Qt.RightEdge
+            if pos.y() < 7:
+                edges |= Qt.TopEdge
+            if pos.y() > self.height() - 7:
+                edges |= Qt.BottomEdge
+            if edges and self.windowHandle():
+                self.windowHandle().startSystemResize(edges)
+                return
+        super().mousePressEvent(event)
+
+
+class TitleBar(QWidget):
+    def __init__(self, frame, on_settings):
+        super().__init__(frame)
+        self.frame = frame
+        self.setFixedHeight(48)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(18, 0, 8, 0)
+        row.setSpacing(2)
+        title = QLabel("Copy & Paste")
+        title.setAttribute(Qt.WA_TransparentForMouseEvents)
+        title.setStyleSheet("font-size: 12px; font-weight: 600;")
+        row.addWidget(title, 1)
         self.buttons = []
         for label, name, callback in (
-            ("⚙", "환경 설정", on_settings),
-            ("−", "최소화", lambda e: frame.Iconize()),
-            ("□", "최대화 / 복원", self.toggle_maximize),
-            ("×", "닫기", lambda e: frame.Close()),
+            ("settings", "환경 설정", on_settings),
+            ("minimize", "최소화", frame.showMinimized),
+            ("maximize", "최대화 / 복원", self.toggle_maximize),
+            ("close", "닫기", frame.close),
         ):
-            button = GlassButton(self, label=label, size=self.FromDIP((36, 32)))
-            button.SetMinSize(self.FromDIP((36, 32)))
-            button.SetToolTip(name)
-            button.SetName(name)
-            button.Bind(wx.EVT_BUTTON, callback)
-            row.Add(button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, self.FromDIP(4))
+            button = QPushButton()
+            button.setProperty("iconName", label)
+            button.setIcon(icon(label))
+            button.setIconSize(QSize(16, 16))
+            button.setProperty("caption", True)
+            button.setFixedSize(32, 30)
+            button.setAccessibleName(name)
+            button.setToolTip(name)
+            if name == "닫기":
+                button.setObjectName("close")
+            button.clicked.connect(callback)
+            row.addWidget(button)
             self.buttons.append(button)
-        self.SetSizer(row)
-        self.SetMinSize(self.FromDIP((-1, 52)))
-        for target in (self, self.title):
-            target.Bind(wx.EVT_LEFT_DOWN, self.start_drag)
-            target.Bind(wx.EVT_LEFT_DCLICK, self.toggle_maximize)
-            target.Bind(wx.EVT_MOTION, self.drag)
-            target.Bind(wx.EVT_LEFT_UP, self.end_drag)
-            target.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self.capture_lost)
 
-    def toggle_maximize(self, event):
-        self.frame.Maximize(not self.frame.IsMaximized())
-        self.buttons[2].SetLabel("❐" if self.frame.IsMaximized() else "□")
+    def toggle_maximize(self):
+        (
+            self.frame.showNormal()
+            if self.frame.isMaximized()
+            else self.frame.showMaximized()
+        )
 
-    def start_drag(self, event):
-        if not self.frame.IsMaximized():
-            self.drag_origin = wx.GetMousePosition() - self.frame.GetPosition()
-            event.GetEventObject().CaptureMouse()
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self.frame.windowHandle():
+            self.frame.windowHandle().startSystemMove()
 
-    def drag(self, event):
-        if self.drag_origin is not None and event.Dragging() and event.LeftIsDown():
-            self.frame.Move(wx.GetMousePosition() - self.drag_origin)
-
-    def end_drag(self, event):
-        target = event.GetEventObject()
-        if target.HasCapture():
-            target.ReleaseMouse()
-        self.drag_origin = None
-
-    def capture_lost(self, event):
-        self.drag_origin = None
-
-    def apply_theme(self, colors):
-        self.SetBackgroundColour(colors["surface"])
-        self.title.SetBackgroundColour(colors["surface"])
-        self.title.SetForegroundColour(colors["text"])
-        for button in self.buttons:
-            button.SetBackgroundColour(colors["surface"])
-            button.SetForegroundColour(colors["text"])
-        self.Refresh()
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.toggle_maximize()

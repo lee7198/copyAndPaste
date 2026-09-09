@@ -1,97 +1,88 @@
-"""Run on a Windows desktop: python tests/windows_smoke.py.
-
-Uses temporary clipboard data/settings; closes its test frame automatically.
-Desktop Acrylic appearance still requires a Windows 11 visual review.
-"""
+"""Qt rendering and CRUD checks. Runs on Windows or QT_QPA_PLATFORM=offscreen."""
 
 from pathlib import Path
+import os
 import sys
 import tempfile
-from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import wx
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 from appearance import AppearanceSettings
 from data_manager import DataManager
 from ui_manager import UIManager
-from settings_dialog import SettingsDialog
-from theme_manager import ThemeManager
 
-app = wx.App(False)
+app = QApplication([])
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
+    data_path = root / "data.json"
+    data_path.write_text('{"list": [], "font_size": 15}', encoding="utf-8")
     prefs = AppearanceSettings(root / "appearance.json")
-    with patch("ui_manager.AppearanceSettings", return_value=prefs):
-        manager = UIManager(app, DataManager(str(root / "data.json")))
+    manager = UIManager(app, DataManager(str(data_path)), prefs)
     try:
-        app.Yield()
-        manager.on_add_button_click(None)
-        manager.key_text.SetValue("한글 항목")
+        app.processEvents()
+        manager.toggle_editor()
+        manager.key_text.setText("한글 항목")
         original = "복사 원문 " * 80
-        manager.value_text.SetValue(original)
-        manager.on_save(None)
+        manager.value_text.setText(original)
+        manager.save()
         assert manager.data_manager.get_item_count() == 1
-        event = wx.ListEvent(wx.EVT_LIST_ITEM_SELECTED.typeId)
-        event.SetIndex(0)
-        manager.on_listctrl_click(event)
-        assert manager.value_text.GetValue() == original.strip()
-        assert manager.input_panel.IsShown()
-        if not wx.TheClipboard.Open():
-            raise AssertionError("Cannot open test clipboard")
-        try:
-            copied = wx.TextDataObject()
-            assert wx.TheClipboard.GetData(copied)
-            assert copied.GetText() == original.strip()
-        finally:
-            wx.TheClipboard.Close()
-        manager.value_text.SetValue("수정한 값")
-        manager.on_save(None)
-        assert manager.data_manager.get_item_count() == 1
+        manager.select_item(manager.data_list_ctrl.item(0))
+        assert QApplication.clipboard().text() == original.strip()
+        assert manager.input_panel.isVisible()
+        manager.value_text.setText("수정한 값")
+        manager.save()
+        assert manager.data_manager.get_items()[0]["value"] == "수정한 값"
+        # No count label or nested header panel. Caption touches the frame edge.
+        assert manager.title_bar.y() <= 1
         for theme in ("light", "dark"):
-            for backdrop in ("off", "mica", "acrylic", "off"):
-                prefs.save({"theme": theme, "backdrop": backdrop, "panel_density": 70})
-                ThemeManager.preference = theme
-                manager._apply_theme()
-                manager._apply_backdrop()
-                for size in ((360, 500), (600, 800)):
-                    manager.frame.SetSize(manager.frame.FromDIP(size))
-                    app.Yield()
-                    assert manager.main_panel.IsShownOnScreen()
-                    assert manager.main_panel.GetBackgroundColour() != wx.BLACK
-                    border = manager.frame.FromDIP(12)
-                    rect = manager.main_panel.GetRect()
-                    client = manager.frame.GetClientSize()
-                    assert rect.x >= border and rect.y >= border
-                    assert rect.GetRight() < client.width - border
-                    assert rect.GetBottom() < client.height - border
-                    list_height = manager.data_list_ctrl.GetSize().height
-                    minimum_height = manager.frame.FromDIP(120)
-                    assert list_height >= minimum_height, (
-                        f"list={list_height}, required={minimum_height}, "
-                        f"requested={size}, client={client}, "
-                        f"minimum_client={manager.minimum_client_size}"
-                    )
-                    assert client.height >= manager.minimum_client_size.height
-                    assert manager.input_panel.IsShownOnScreen()
+            for backdrop in ("off", "blur", "acrylic"):
+                prefs.save(dict(prefs.values, theme=theme, backdrop=backdrop))
+                manager.apply_appearance()
+                for width, height in ((340, 540), (600, 800)):
+                    manager.frame.resize(width, height)
+                    app.processEvents()
+                    assert manager.data_list_ctrl.height() >= 120
+                    assert manager.title_bar.isVisible()
                     assert (
-                        manager.input_panel.GetRect().GetBottom()
-                        < manager.main_panel.GetClientSize().height
+                        manager.delete_button.geometry().right()
+                        <= manager.input_panel.width()
                     )
-                    for button in manager.title_bar.buttons:
-                        assert button.IsShownOnScreen()
-                        assert (
-                            button.GetRect().GetRight()
-                            <= manager.title_bar.GetClientSize().width
-                        )
-        dialog = SettingsDialog(manager.frame, prefs.values, False)
-        assert dialog.values() == prefs.values
-        dialog.Destroy()
-        manager.data_list_ctrl.Select(0)
-        manager.on_delete(None)
+                    rendered = manager.frame.grab().toImage()
+                    # Sample empty list surface: alpha is genuinely transparent,
+                    # while text/icons still contribute distinct pixel colors.
+                    point = manager.data_list_ctrl.mapTo(
+                        manager.frame, manager.data_list_ctrl.rect().center()
+                    )
+                    alpha = rendered.pixelColor(point).alpha()
+                    assert alpha == 255 if backdrop == "off" else 0 < alpha < 255, (
+                        backdrop,
+                        alpha,
+                    )
+                    header = rendered.copy(0, 0, width, 48)
+                    colors = {
+                        header.pixel(x, y)
+                        for x in range(15, 140)
+                        for y in range(10, 38)
+                    }
+                    assert len(colors) > 10, "Title text did not render"
+        manager.toggle_settings()
+        assert manager.pages.currentIndex() == 1
+        manager.settings.opacity.setValue(30)
+        manager.settings.cancelled.emit()
+        assert prefs.values["window_opacity"] == 52
+        manager.toggle_settings()
+        manager.settings.opacity.setValue(35)
+        manager.save_settings(manager.settings.values())
+        assert AppearanceSettings(prefs.path).values["window_opacity"] == 35
+        manager.select_item(manager.data_list_ctrl.item(0))
+        manager.delete()
         assert manager.data_manager.get_item_count() == 0
-        print("Windows UI / clipboard / CRUD / settings smoke passed")
+        if os.environ.get("UI_SCREENSHOT_DIR"):
+            out = Path(os.environ["UI_SCREENSHOT_DIR"])
+            out.mkdir(parents=True, exist_ok=True)
+            manager.frame.grab().save(str(out / "empty.png"))
+        print("Qt alpha rendering / clipboard / CRUD / settings smoke passed")
     finally:
-        if manager.status_clear_timer:
-            manager.status_clear_timer.Stop()
-        manager.frame.Destroy()
-        app.Yield()
+        manager.frame.close()
+        app.processEvents()
