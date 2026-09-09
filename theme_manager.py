@@ -53,49 +53,43 @@ class ThemeManager:
         except Exception:
             return False
 
+    preference = "system"
+    panel_density = 80
+
     @staticmethod
     def get_theme_colors() -> Dict[str, wx.Colour]:
-        """현재 테마에 맞는 색상 팔레트를 반환합니다."""
-        is_dark = ThemeManager.is_dark_mode()
-
-        if is_dark:
-            return {
-                # Material 3 dark inspired palette
-                "primary": wx.Colour(178, 197, 255),
-                "on_primary": wx.Colour(22, 46, 97),
-                "secondary": wx.Colour(194, 197, 220),
-                "background": wx.Colour(19, 19, 24),
-                "surface": wx.Colour(30, 30, 36),
-                "surface_variant": wx.Colour(45, 46, 56),
-                "list_background": wx.Colour(30, 30, 36),
-                "text": wx.Colour(230, 226, 236),
-                "on_surface": wx.Colour(230, 226, 236),
-                "on_surface_variant": wx.Colour(199, 198, 209),
-                "input_background": wx.Colour(45, 46, 56),
-                "border": wx.Colour(100, 101, 114),
-                "outline": wx.Colour(123, 124, 137),
-                "success": wx.Colour(117, 220, 126),
-                "danger": wx.Colour(255, 180, 171),
-            }
-        else:
-            return {
-                # Material 3 light inspired palette
-                "primary": wx.Colour(64, 95, 168),
-                "on_primary": wx.Colour(255, 255, 255),
-                "secondary": wx.Colour(86, 95, 127),
-                "background": wx.Colour(248, 249, 255),
-                "surface": wx.Colour(255, 255, 255),
-                "surface_variant": wx.Colour(227, 226, 236),
-                "list_background": wx.Colour(255, 255, 255),
-                "text": wx.Colour(28, 27, 31),
-                "on_surface": wx.Colour(28, 27, 31),
-                "on_surface_variant": wx.Colour(72, 70, 79),
-                "input_background": wx.Colour(243, 244, 251),
-                "border": wx.Colour(203, 201, 212),
-                "outline": wx.Colour(120, 118, 128),
-                "success": wx.Colour(31, 123, 54),
-                "danger": wx.Colour(186, 26, 26),
-            }
+        """Warm neutral glass palette with opaque, readable text surfaces."""
+        dark = ThemeManager.preference == "dark" or (
+            ThemeManager.preference == "system" and ThemeManager.is_dark_mode()
+        )
+        values = {
+            "primary": "E6DFD3" if dark else "484C46",
+            "on_primary": "292B29" if dark else "FFFFFF",
+            "background": "252725" if dark else "D9D7D0",
+            "surface": "3D403C" if dark else "F0EEE8",
+            "surface_variant": "50534D" if dark else "E1DFD7",
+            "text": "F4F1E9" if dark else "292D28",
+            "on_surface_variant": "C9CDC3" if dark else "60665D",
+            "input_background": "333631" if dark else "FAF9F5",
+            "border": "6A6E65" if dark else "FFFFFF",
+            "success": "B1DBB9" if dark else "326743",
+            "danger": "EFB7AE" if dark else "A44339",
+        }
+        colors = {key: wx.Colour("#" + value) for key, value in values.items()}
+        # Density changes panel tint; Windows owns the actual blur radius.
+        ratio = ThemeManager.panel_density / 100
+        bg, surface = colors["background"], colors["surface"]
+        colors["surface"] = wx.Colour(
+            *[
+                round(a * ratio + b * (1 - ratio))
+                for a, b in zip(surface.Get()[:3], bg.Get()[:3])
+            ]
+        )
+        colors["on_surface"] = colors["text"]
+        colors["list_background"] = colors["surface"]
+        colors["secondary"] = colors["on_surface_variant"]
+        colors["outline"] = colors["border"]
+        return colors
 
     @staticmethod
     def get_primary_color() -> wx.Colour:

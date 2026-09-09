@@ -4,7 +4,7 @@
 
 ![예시](./src/image.png)
 
-Material 디자인을 참고해 조금 더 깔끔한 스타일을 적용했습니다.
+따뜻한 회색 유리 패널과 둥근 버튼으로 구성한 Windows 데스크톱 UI입니다. 위 이미지는 이전 버전 화면입니다.
 
 ## 주요 기능
 
@@ -33,13 +33,13 @@ copyAndPaste/
 
 ### 요구사항
 
-- Python 3.7+
+- Python 3.11+
 - wxPython
 
 ### 설치
 
 ```bash
-pip install wxPython
+pip install -r requirements.txt
 ```
 
 ### 실행
@@ -78,3 +78,34 @@ python main.py
 ## 라이선스
 
 이 프로젝트는 개인 사용 목적으로 제작되었습니다.
+
+## 유리 스타일과 환경 설정
+
+상단 톱니바퀴에서 테마(시스템/라이트/다크), 배경 블러(끄기/Mica/Acrylic),
+패널 색상 농도(50–100)를 설정합니다. 확인을 누르면 바로 적용되고 재실행 후에도 유지됩니다.
+취소는 변경을 버리고, 기본값 복원은 대화상자의 값만 초기화합니다.
+설정은 Windows의 `%APPDATA%/CopyAndPaste/appearance.json`에 별도로 저장하여
+기존 `data.json`의 항목과 글꼴 정보를 변경하지 않습니다.
+
+- Windows 11 22H2(build 22621) 이상: 공식 DWM API의 Acrylic/Mica 배경 효과.
+- Windows 10, 이전 Windows 11 및 다른 OS: 읽기 쉬운 불투명 스타일로 대체.
+- 블러는 패널 사이의 창 배경에 적용됩니다. 목록과 입력 영역은 가독성을 위해 불투명하게 유지합니다.
+- 블러 반경은 Windows가 관리합니다. 농도 슬라이더는 패널 색상을 조절하며 픽셀 단위 블러/창 전체 투명도가 아닙니다.
+- Windows 투명 효과 설정, 고대비, 절전 및 원격 데스크톱 환경에 따라 실제 재질이 달라질 수 있습니다.
+- 사용자 지정 제목 표시줄에서 이동, 최소화, 최대화/복원, 닫기가 가능합니다.
+  제목 표시줄 더블 클릭은 최대화/복원하며, 창 테두리로 크기를 변경합니다.
+- 항목 클릭 시 원문 복사, 추가/수정/삭제, Enter 저장 및 기존 JSON 저장 방식을 유지합니다.
+
+[DWM 배경 재질 문서](https://learn.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type)
+
+## 검증
+
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+python tests/windows_smoke.py
+```
+
+두 번째 명령은 wxPython과 데스크톱 세션이 필요하며 테스트 클립보드 값을 씁니다.
+Windows CI에서 시작, 원문 복사, CRUD, 설정 대화상자, 크기 변경을 검사합니다.
+실제 배경 효과는 Windows 11에서 라이트/다크, 블러 끄기/켜기, 최소화 후 복원,
+배율 100%/150%/200%, 설정 저장 후 재실행을 직접 확인해야 합니다.

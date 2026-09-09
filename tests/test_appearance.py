@@ -1,0 +1,62 @@
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from appearance import AppearanceSettings, DEFAULTS, normalize
+from data_manager import DataManager
+from windows_effects import apply_backdrop
+
+
+class AppearanceTests(unittest.TestCase):
+    def test_invalid_values_and_bounds(self):
+        self.assertEqual(normalize(None), DEFAULTS)
+        self.assertEqual(normalize({"theme": [], "panel_density": True}), DEFAULTS)
+        self.assertEqual(normalize({"panel_density": -50})["panel_density"], 50)
+        self.assertEqual(normalize({"panel_density": 500})["panel_density"], 100)
+
+    def test_settings_round_trip_does_not_touch_clipboard_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data_path = Path(directory) / "data.json"
+            data_path.write_text(
+                json.dumps(
+                    {"font_size": 15, "list": [{"key": "안녕", "value": "원문"}]}
+                )
+            )
+            original = data_path.read_bytes()
+            settings = AppearanceSettings(Path(directory) / "settings.json")
+            settings.save({"theme": "dark", "backdrop": "off", "panel_density": 60})
+            self.assertEqual(AppearanceSettings(settings.path).values, settings.values)
+            self.assertEqual(data_path.read_bytes(), original)
+            manager = DataManager(str(data_path))
+            self.assertTrue(manager.add_item("긴 글", "x" * 1000))
+            self.assertTrue(manager.update_item(0, "수정", "한글\n두 번째 줄"))
+            self.assertTrue(manager.delete_data(1))
+            manager.refresh_data()
+            self.assertEqual(
+                manager.get_items(), [{"key": "수정", "value": "한글\n두 번째 줄"}]
+            )
+
+    def test_corrupt_file_and_failed_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "appearance.json"
+            path.write_text("{broken")
+            settings = AppearanceSettings(path)
+            self.assertEqual(settings.values, DEFAULTS)
+            settings.save(DEFAULTS)
+            original = path.read_bytes()
+            with patch("appearance.os.replace", side_effect=OSError("read only")):
+                with self.assertRaises(OSError):
+                    settings.save({"theme": "dark"})
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(settings.values, DEFAULTS)
+            self.assertEqual(list(Path(directory).iterdir()), [path])
+
+    def test_unsupported_platform_does_not_load_windows_dll(self):
+        with patch("windows_effects.sys.platform", "linux"):
+            self.assertFalse(apply_backdrop(0, "acrylic"))
+
+
+if __name__ == "__main__":
+    unittest.main()
