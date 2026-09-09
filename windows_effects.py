@@ -13,7 +13,7 @@ class Margins(ctypes.Structure):
     _fields_ = [(name, ctypes.c_int) for name in ("left", "right", "top", "bottom")]
 
 
-def apply_backdrop(handle, mode, dark=False):
+def apply_backdrop(handle, mode, dark=False, border_width=12):
     if sys.platform != "win32" or sys.getwindowsversion().build < 22621:
         return False
     try:
@@ -41,9 +41,12 @@ def apply_backdrop(handle, mode, dark=False):
         attribute(33, 2)  # DWMWA_WINDOW_CORNER_PREFERENCE: round
         material = {"off": 1, "mica": 2, "acrylic": 3}.get(mode, 1)
         enabled = attribute(38, material) and material != 1
-        margin = -1 if enabled else 0
+        # Never extend glass across wx/GDI child controls: their paint output
+        # does not provide the alpha channel required for full-client glass.
+        margin = max(0, int(border_width)) if enabled else 0
         if extend(handle, ctypes.byref(Margins(margin, margin, margin, margin))) < 0:
             attribute(38, 1)
+            extend(handle, ctypes.byref(Margins(0, 0, 0, 0)))
             return False
         return enabled
     except (OSError, AttributeError):

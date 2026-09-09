@@ -48,19 +48,41 @@ with tempfile.TemporaryDirectory() as directory:
         manager.on_save(None)
         assert manager.data_manager.get_item_count() == 1
         for theme in ("light", "dark"):
-            prefs.save({"theme": theme, "backdrop": "off", "panel_density": 70})
-            ThemeManager.preference = theme
-            manager._apply_theme()
-            manager._apply_backdrop()
-            for size in ((360, 500), (600, 800)):
-                manager.frame.SetSize(manager.frame.FromDIP(size))
-                app.Yield()
-                assert manager.data_list_ctrl.GetSize().height > 50
-                for button in manager.title_bar.buttons:
-                    assert (
-                        button.GetRect().GetRight()
-                        <= manager.title_bar.GetClientSize().width
+            for backdrop in ("off", "mica", "acrylic", "off"):
+                prefs.save({"theme": theme, "backdrop": backdrop, "panel_density": 70})
+                ThemeManager.preference = theme
+                manager._apply_theme()
+                manager._apply_backdrop()
+                for size in ((360, 500), (600, 800)):
+                    manager.frame.SetSize(manager.frame.FromDIP(size))
+                    app.Yield()
+                    assert manager.main_panel.IsShownOnScreen()
+                    assert manager.main_panel.GetBackgroundColour() != wx.BLACK
+                    border = manager.frame.FromDIP(12)
+                    rect = manager.main_panel.GetRect()
+                    client = manager.frame.GetClientSize()
+                    assert rect.x >= border and rect.y >= border
+                    assert rect.GetRight() < client.width - border
+                    assert rect.GetBottom() < client.height - border
+                    list_height = manager.data_list_ctrl.GetSize().height
+                    minimum_height = manager.frame.FromDIP(120)
+                    assert list_height >= minimum_height, (
+                        f"list={list_height}, required={minimum_height}, "
+                        f"requested={size}, client={client}, "
+                        f"minimum_client={manager.minimum_client_size}"
                     )
+                    assert client.height >= manager.minimum_client_size.height
+                    assert manager.input_panel.IsShownOnScreen()
+                    assert (
+                        manager.input_panel.GetRect().GetBottom()
+                        < manager.main_panel.GetClientSize().height
+                    )
+                    for button in manager.title_bar.buttons:
+                        assert button.IsShownOnScreen()
+                        assert (
+                            button.GetRect().GetRight()
+                            <= manager.title_bar.GetClientSize().width
+                        )
         dialog = SettingsDialog(manager.frame, prefs.values, False)
         assert dialog.values() == prefs.values
         dialog.Destroy()

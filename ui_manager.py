@@ -65,6 +65,9 @@ class UIManager:
         self._init_controls()
         self._layout_controls()
         self._apply_theme()
+        self._set_layout_minimum()
+        self.frame.Layout()
+        self.main_panel.Layout()
         self.frame.Show()
         self._apply_backdrop()
 
@@ -210,6 +213,7 @@ class UIManager:
         list_sizer.Add(
             self.data_list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, margin
         )
+        self.data_list_ctrl.SetMinSize(self.frame.FromDIP((-1, 120)))
         self.list_panel.SetSizer(list_sizer)
         main_sizer.Add(self.list_panel, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, margin)
         main_sizer.Add(self.status_label, 0, wx.EXPAND | wx.ALL, margin)
@@ -217,9 +221,38 @@ class UIManager:
         main_sizer.Add(self.add_button, 0, wx.EXPAND | wx.ALL, margin)
         self.main_panel.SetSizer(main_sizer)
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
-        frame_sizer.Add(self.main_panel, 1, wx.EXPAND)
+        self.content_inset = frame_sizer.Add(
+            self.main_panel, 1, wx.EXPAND | wx.ALL, self.frame.FromDIP(12)
+        )
         self.frame.SetSizer(frame_sizer)
         self._layout_input_panel()
+
+    def _set_layout_minimum(self):
+        """Measure the full editor plus a usable list, including native chrome."""
+        editor_visible = self.input_panel.IsShown()
+        self.input_panel.Show()
+        # Containers cache their best size. Measure after all nested sizers
+        # and fonts are ready, with the editor included even when initially hidden.
+        for panel in (self.input_panel, self.list_panel, self.main_panel):
+            panel.InvalidateBestSize()
+        minimum = self.frame.GetSizer().CalcMin()
+        self.input_panel.Show(editor_visible)
+        self.main_panel.InvalidateBestSize()
+        self.minimum_client_size = wx.Size(
+            max(self.frame.FromDIP(360), minimum.width), minimum.height
+        )
+        self.frame.SetMinClientSize(self.minimum_client_size)
+        self._ensure_minimum_client_size()
+
+    def _ensure_minimum_client_size(self):
+        minimum = getattr(self, "minimum_client_size", None)
+        if minimum is None or self.frame.IsIconized():
+            return
+        current = self.frame.GetClientSize()
+        if current.width < minimum.width or current.height < minimum.height:
+            self.frame.SetClientSize(
+                max(current.width, minimum.width), max(current.height, minimum.height)
+            )
 
     def _layout_input_panel(self) -> None:
         """입력 패널 레이아웃 설정"""
@@ -357,6 +390,8 @@ class UIManager:
         self.frame.Bind(wx.EVT_ACTIVATE, self.on_activate)
 
     def on_frame_resize(self, event) -> None:
+        # Programmatic SetSize can bypass native resize hints.
+        self._ensure_minimum_client_size()
         event.Skip()
 
     def on_frame_maximize(self, event) -> None:
@@ -559,16 +594,21 @@ class UIManager:
             ThemeManager.preference == "system" and ThemeManager.is_dark_mode()
         )
         self.backdrop_active = apply_backdrop(
-            self.frame.GetHandle(), self.appearance.values["backdrop"], dark
+            self.frame.GetHandle(),
+            self.appearance.values["backdrop"],
+            dark,
+            border_width=self.frame.FromDIP(12),
         )
-        # Zero RGB GDI background exposes DWM in the gutters between panels.
-        color = (
-            wx.BLACK if self.backdrop_active else ThemeManager.get_background_color()
-        )
-        self.frame.SetBackgroundColour(color)
-        self.main_panel.SetBackgroundColour(color)
-        self.status_label.SetBackgroundColour(ThemeManager.get_background_color())
-        self.main_panel.Refresh()
+        # Only the outer frame gutter participates in DWM glass. Keep the
+        # entire child hierarchy in the ordinary opaque client rectangle.
+        background = ThemeManager.get_background_color()
+        self.frame.SetBackgroundColour(wx.BLACK if self.backdrop_active else background)
+        self.main_panel.SetBackgroundColour(background)
+        self.status_label.SetBackgroundColour(background)
+        self.content_inset.SetBorder(self.frame.FromDIP(12))
+        self.frame.Layout()
+        self.main_panel.Layout()
+        self.frame.Refresh()
 
     def on_activate(self, event):
         self._apply_backdrop()
