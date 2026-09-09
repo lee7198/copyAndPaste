@@ -1,4 +1,5 @@
 import json
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -52,6 +53,42 @@ class AppearanceTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), original)
             self.assertEqual(settings.values, DEFAULTS)
             self.assertEqual(list(Path(directory).iterdir()), [path])
+
+    def test_korean_data_and_errors_with_cp1252_console(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "한글.json"
+            path.write_text('{"list": [], "font_size": 15}', encoding="utf-8")
+            output = io.BytesIO()
+            with io.TextIOWrapper(
+                output, encoding="cp1252", errors="strict"
+            ) as console:
+                with patch("data_manager.sys.stdout", console):
+                    manager = DataManager(str(path))
+                    self.assertTrue(manager.add_item("이름", "한글 원문"))
+                    manager.refresh_data()
+                    self.assertEqual(
+                        manager.get_items(), [{"key": "이름", "value": "한글 원문"}]
+                    )
+                    self.assertFalse(manager.delete_data(999))
+                    with patch("builtins.open", side_effect=OSError("저장 실패")):
+                        self.assertFalse(manager.save_data())
+                console.flush()
+                self.assertTrue(output.getvalue())
+            self.assertIn("한글 원문", path.read_text(encoding="utf-8"))
+
+    def test_save_with_missing_or_closed_console(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "data.json"
+            path.write_text('{"list": [], "font_size": 15}', encoding="utf-8")
+            closed = io.StringIO()
+            closed.close()
+            for console in (None, closed):
+                with self.subTest(console=console):
+                    with patch("data_manager.sys.stdout", console):
+                        manager = DataManager(str(path))
+                        self.assertTrue(manager.save_data())
+                        with patch("builtins.open", side_effect=OSError("저장 실패")):
+                            self.assertFalse(manager.save_data())
 
     def test_unsupported_platform_does_not_load_windows_dll(self):
         with patch("windows_effects.sys.platform", "linux"):
