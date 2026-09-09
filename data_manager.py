@@ -5,8 +5,25 @@ JSON 파일을 통한 데이터 저장 및 로드를 처리합니다.
 
 import json
 import os
+import sys
 from typing import List, Dict, Any, Optional
 from constants import DEFAULT_DATA_FILE, DEFAULT_INIT_DATA, DEFAULT_FONT_SIZE_VALUE
+
+
+def _report(message: str) -> None:
+    """Best-effort diagnostics must never change the result of a data operation."""
+    stream = sys.stdout
+    if stream is None:  # PyInstaller --windowed has no console.
+        return
+    try:
+        encoding = getattr(stream, "encoding", None) or "utf-8"
+        safe_message = message.encode(encoding, errors="backslashreplace").decode(
+            encoding
+        )
+        print(safe_message, file=stream)
+    except (OSError, ValueError, UnicodeError):
+        # A closed/unavailable console is not a storage failure.
+        pass
 
 
 class DataManager:
@@ -29,7 +46,7 @@ class DataManager:
                     loaded_data = json.load(f)
                     # 데이터 구조 검증 및 보정
                     if not isinstance(loaded_data, dict):
-                        print(f"잘못된 데이터 구조: {self.json_file}")
+                        _report(f"잘못된 데이터 구조: {self.json_file}")
                         return DEFAULT_INIT_DATA.copy()
                     if "list" not in loaded_data:
                         loaded_data["list"] = []
@@ -37,10 +54,10 @@ class DataManager:
                         loaded_data["font_size"] = DEFAULT_FONT_SIZE_VALUE
                     return loaded_data
             except json.JSONDecodeError as e:
-                print(f"JSON 파싱 오류: {e}")
+                _report(f"JSON 파싱 오류: {e}")
                 return DEFAULT_INIT_DATA.copy()
             except Exception as e:
-                print(f"데이터 로드 중 오류 발생: {e}")
+                _report(f"데이터 로드 중 오류 발생: {e}")
                 return DEFAULT_INIT_DATA.copy()
         return DEFAULT_INIT_DATA.copy()
 
@@ -51,10 +68,10 @@ class DataManager:
             os.makedirs(os.path.dirname(self.json_file), exist_ok=True)
             with open(self.json_file, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
-            print(f"데이터가 성공적으로 저장되었습니다: {self.json_file}")
+            _report(f"데이터가 성공적으로 저장되었습니다: {self.json_file}")
             return True
         except Exception as e:
-            print(f"데이터 저장 중 오류 발생: {e}")
+            _report(f"데이터 저장 중 오류 발생: {e}")
             return False
 
     def get_font_size(self) -> int:
@@ -76,7 +93,7 @@ class DataManager:
             self.data["list"].append({"key": key, "value": value})
             return self.save_data()
         except Exception as e:
-            print(f"항목 추가 중 오류 발생: {e}")
+            _report(f"항목 추가 중 오류 발생: {e}")
             return False
 
     def get_items(self) -> List[Dict[str, str]]:
@@ -90,10 +107,10 @@ class DataManager:
                 del self.data["list"][index]
                 return self.save_data()
             else:
-                print(f"잘못된 인덱스: {index}")
+                _report(f"잘못된 인덱스: {index}")
                 return False
         except Exception as e:
-            print(f"항목 삭제 중 오류 발생: {e}")
+            _report(f"항목 삭제 중 오류 발생: {e}")
             return False
 
     def update_item(self, index: int, key: str, value: str) -> bool:
@@ -103,10 +120,10 @@ class DataManager:
                 self.data["list"][index] = {"key": key, "value": value}
                 return self.save_data()
             else:
-                print(f"잘못된 인덱스: {index}")
+                _report(f"잘못된 인덱스: {index}")
                 return False
         except Exception as e:
-            print(f"항목 업데이트 중 오류 발생: {e}")
+            _report(f"항목 업데이트 중 오류 발생: {e}")
             return False
 
     def get_item_count(self) -> int:
@@ -119,5 +136,5 @@ class DataManager:
             self.data["list"] = []
             return self.save_data()
         except Exception as e:
-            print(f"데이터 초기화 중 오류 발생: {e}")
+            _report(f"데이터 초기화 중 오류 발생: {e}")
             return False

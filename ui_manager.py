@@ -9,115 +9,19 @@ UI 관리 기능을 담당하는 모듈입니다.
 import wx
 from typing import Optional
 from constants import (
-    WINDOW_WIDTH,
-    WINDOW_HEIGHT,
-    WINDOW_MIN_HEIGHT,
-    WINDOW_MARGIN_X,
-    WINDOW_MARGIN_Y,
     KEY_COLUMN_RATIO,
-    VALUE_COLUMN_RATIO,
     INPUT_FIELD_WIDTH,
     DEFAULT_FONT_SIZE,
     LABEL_FONT_SIZE_OFFSET,
-    PANEL_MARGIN,
     STATUS_DISPLAY_TIME,
 )
 from theme_manager import ThemeManager
 from data_manager import DataManager
 
 
-# 시스템 테마에 따른 동적 색상 설정
-def get_theme_colors():
-    """시스템 테마에 따라 색상을 반환"""
-    # macOS에서 다크모드 감지
-    if wx.Platform == "__WXMAC__":
-        try:
-            import subprocess
-
-            result = subprocess.run(
-                ["defaults", "read", "-g", "AppleInterfaceStyle"],
-                capture_output=True,
-                text=True,
-            )
-            is_dark = result.stdout.strip() == "Dark"
-        except Exception:
-            is_dark = False
-    # Windows에서 다크모드 감지
-    elif wx.Platform == "__WXMSW__":
-        try:
-            import winreg
-
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-            )
-            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-            is_dark = value == 0
-            winreg.CloseKey(key)
-        except Exception:
-            is_dark = False
-    else:
-        is_dark = False
-
-    if is_dark:
-        # 다크모드 색상
-        return {
-            "primary": wx.Colour(33, 150, 243),  # Material Blue 500
-            "background": wx.Colour(30, 30, 30),  # 어두운 배경
-            "list_background": wx.Colour(45, 45, 45),  # 어두운 리스트 배경
-            "text": wx.Colour(255, 255, 255),  # 흰색 텍스트
-            "input_background": wx.Colour(50, 50, 50),  # 어두운 입력 필드
-            "border": wx.Colour(70, 70, 70),  # 어두운 테두리
-        }
-    else:
-        # 라이트모드 색상
-        return {
-            "primary": wx.Colour(33, 150, 243),  # Material Blue 500
-            "background": wx.Colour(250, 250, 250, 0),  # 밝은 배경
-            "list_background": wx.Colour(245, 245, 245, 0),  # 밝은 리스트 배경
-            "text": wx.Colour(0, 0, 0),  # 검은색 텍스트
-            "input_background": wx.Colour(255, 255, 255, 0),  # 흰색 입력 필드
-            "border": wx.Colour(200, 200, 200),  # 밝은 테두리
-        }
-
-
-# 기존 색상 상수 제거하고 함수로 대체
-def get_primary_color():
-    return get_theme_colors()["primary"]
-
-
-def get_background_color():
-    return get_theme_colors()["background"]
-
-
-def get_list_background_color():
-    return get_theme_colors()["list_background"]
-
-
-class RoundedPanel(wx.Panel):
-    def __init__(self, parent, radius=10, **kwargs):
-        wx.Panel.__init__(self, parent, **kwargs)
-        self.radius = radius
-        self.Bind(wx.EVT_PAINT, self.OnPaint)
-        self.Bind(wx.EVT_SIZE, self.OnSize)
-
-    def OnPaint(self, event):
-        dc = wx.BufferedPaintDC(self)
-        self.DrawRoundedRectangle(dc)
-
-    def OnSize(self, event):
-        self.Refresh()
-
-    def DrawRoundedRectangle(self, dc):
-        dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
-        dc.Clear()
-
-        width, height = self.GetSize()
-
-        # 둥근 사각형 그리기
-        dc.SetBrush(wx.Brush(self.GetBackgroundColour()))
-        dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.DrawRoundedRectangle(0, 0, width, height, self.radius)
+from appearance import AppearanceSettings
+from glass_ui import GlassButton, GlassFrame, GlassPanel, TitleBar
+from windows_effects import apply_backdrop
 
 
 class UIManager:
@@ -128,6 +32,9 @@ class UIManager:
     ):
         self.app = app
         self.data_manager = data_manager
+        self.appearance = AppearanceSettings()
+        ThemeManager.preference = self.appearance.values["theme"]
+        ThemeManager.panel_density = self.appearance.values["panel_density"]
         # 저장된 값이 과도하게 크면 UI가 깨지므로 기본값을 상한으로 사용
         self.font_size = min(self.data_manager.get_font_size(), DEFAULT_FONT_SIZE)
         self.selected_index: Optional[int] = None
@@ -147,7 +54,6 @@ class UIManager:
         self.status_label: Optional[wx.StaticText] = None
         self.font: Optional[wx.Font] = None
         self.status_clear_timer = None
-        self._is_adjusting_frame_size = False
 
         self.init_ui()
         self.setup_event_handlers()
@@ -160,31 +66,34 @@ class UIManager:
         self._layout_controls()
         self._apply_theme()
         self.frame.Show()
+        self._apply_backdrop()
 
     def _create_main_frame(self) -> None:
         """메인 프레임 생성"""
-        frame_style = wx.DEFAULT_FRAME_STYLE & ~wx.MAXIMIZE_BOX
-        self.frame = wx.Frame(None, title="Copy & Paste", style=frame_style)
-        self.frame.SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
-        self.frame.SetSizeHints(WINDOW_WIDTH, WINDOW_MIN_HEIGHT, WINDOW_WIDTH, -1)
-        self.frame.SetMinSize((WINDOW_WIDTH, WINDOW_MIN_HEIGHT))
-        self.frame.SetMaxSize((WINDOW_WIDTH, -1))
-
-        # 화면 중앙에 위치
-        screen_width, screen_height = wx.GetDisplaySize()
-        x = screen_width - WINDOW_WIDTH - WINDOW_MARGIN_X
-        y = screen_height - WINDOW_HEIGHT - WINDOW_MARGIN_Y
-        self.frame.SetPosition(wx.Point(x, y))
+        self.frame = GlassFrame()
+        self.frame.SetSize(self.frame.FromDIP((380, 620)))
+        self.frame.SetMinSize(self.frame.FromDIP((360, 500)))
+        self.app.SetTopWindow(self.frame)
+        self.frame.Centre()
 
     def _create_panels(self) -> None:
         """패널들 생성"""
         self.main_panel = wx.Panel(self.frame)
+        self.title_bar = TitleBar(self.main_panel, self.frame, self.on_settings)
+        self.list_panel = GlassPanel(self.main_panel)
+        self.library_title = wx.StaticText(self.list_panel, label="저장한 텍스트")
+        self.library_hint = wx.StaticText(
+            self.list_panel, label="항목을 선택하면 바로 복사됩니다."
+        )
+        self.library_title.SetFont(
+            wx.Font(14, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        )
         self.main_panel.SetBackgroundColour(ThemeManager.get_background_color())
 
         self.status_label = wx.StaticText(self.main_panel, label="")
-        self.status_label.SetMinSize(wx.Size(-1, 18))
+        self.status_label.SetMinSize(self.frame.FromDIP((-1, 22)))
 
-        self.input_panel = wx.Panel(self.main_panel)
+        self.input_panel = GlassPanel(self.main_panel)
         self.input_panel.SetBackgroundColour(ThemeManager.get_background_color())
         self.input_panel.Hide()
 
@@ -222,8 +131,8 @@ class UIManager:
 
     def _init_buttons(self) -> None:
         """버튼들 초기화"""
-        BUTTON_HEIGHT = 26
-        self.add_button = wx.Button(
+        BUTTON_HEIGHT = self.frame.FromDIP(38)
+        self.add_button = GlassButton(
             self.main_panel,
             label="추가",
             style=wx.BORDER_NONE,
@@ -231,12 +140,14 @@ class UIManager:
         )
         self.add_button.SetMinSize((-1, BUTTON_HEIGHT))
         self.add_button.SetMaxSize((-1, BUTTON_HEIGHT))
-        self.new_button = wx.Button(self.input_panel, label="new", style=wx.BORDER_NONE)
-        self.save_button = wx.Button(
-            self.input_panel, label="save", style=wx.BORDER_NONE
+        self.new_button = GlassButton(
+            self.input_panel, label="새 항목", style=wx.BORDER_NONE
         )
-        self.delete_button = wx.Button(
-            self.input_panel, label="delete", style=wx.BORDER_NONE
+        self.save_button = GlassButton(
+            self.input_panel, label="저장", style=wx.BORDER_NONE
+        )
+        self.delete_button = GlassButton(
+            self.input_panel, label="삭제", style=wx.BORDER_NONE
         )
 
         # 버튼들 높이 맞추기
@@ -248,13 +159,13 @@ class UIManager:
     def _init_list_control(self) -> None:
         """리스트 컨트롤 초기화"""
         self.data_list_ctrl = wx.ListCtrl(
-            self.main_panel,
+            self.list_panel,
             style=wx.LC_REPORT | wx.BORDER_NONE | wx.LC_SINGLE_SEL,
         )
 
         # 컬럼 설정 (초기값, 이후 동적으로 조정)
-        self.data_list_ctrl.InsertColumn(0, "key", width=100)
-        self.data_list_ctrl.InsertColumn(1, "value", width=100)
+        self.data_list_ctrl.InsertColumn(0, "이름", width=100)
+        self.data_list_ctrl.InsertColumn(1, "내용", width=100)
 
         colors = ThemeManager.get_theme_colors()
         self.data_list_ctrl.SetBackgroundColour(colors["list_background"])
@@ -280,37 +191,45 @@ class UIManager:
         self.value_text.SetFont(self.font)
 
         # 폰트 기준으로 입력 필드 높이를 계산해 글자 잘림 방지
-        input_height = max(26, self.font.GetPixelSize().GetHeight() + 14)
+        input_height = max(
+            self.frame.FromDIP(34),
+            self.font.GetPixelSize().GetHeight() + self.frame.FromDIP(14),
+        )
         for text_ctrl in [self.key_text, self.value_text]:
             text_ctrl.SetMinSize(wx.Size(-1, input_height))
             text_ctrl.SetSize(wx.Size(-1, input_height))
 
     def _layout_controls(self) -> None:
         """컨트롤 레이아웃 설정"""
-        # 메인 레이아웃
+        margin = self.frame.FromDIP(12)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
-        main_sizer.Add(
-            self.status_label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, PANEL_MARGIN
+        main_sizer.Add(self.title_bar, 0, wx.EXPAND | wx.ALL, margin)
+        list_sizer = wx.BoxSizer(wx.VERTICAL)
+        list_sizer.Add(self.library_title, 0, wx.ALL, margin)
+        list_sizer.Add(self.library_hint, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, margin)
+        list_sizer.Add(
+            self.data_list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, margin
         )
-        main_sizer.Add(self.data_list_ctrl, 1, wx.EXPAND | wx.ALL, PANEL_MARGIN)
-        main_sizer.Add(
-            self.input_panel, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, PANEL_MARGIN
-        )
-        main_sizer.Add(self.add_button, 0, wx.EXPAND | wx.ALL, PANEL_MARGIN)
+        self.list_panel.SetSizer(list_sizer)
+        main_sizer.Add(self.list_panel, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, margin)
+        main_sizer.Add(self.status_label, 0, wx.EXPAND | wx.ALL, margin)
+        main_sizer.Add(self.input_panel, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, margin)
+        main_sizer.Add(self.add_button, 0, wx.EXPAND | wx.ALL, margin)
         self.main_panel.SetSizer(main_sizer)
-
-        # 입력 패널 레이아웃
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(self.main_panel, 1, wx.EXPAND)
+        self.frame.SetSizer(frame_sizer)
         self._layout_input_panel()
 
     def _layout_input_panel(self) -> None:
         """입력 패널 레이아웃 설정"""
-        button_gap = 4
-        field_inner_gap = 4
-        section_gap = 4
+        button_gap = self.frame.FromDIP(6)
+        field_inner_gap = self.frame.FromDIP(6)
+        section_gap = self.frame.FromDIP(8)
 
         # 라벨 생성
-        key_label = wx.StaticText(self.input_panel, label="key")
-        value_label = wx.StaticText(self.input_panel, label="value")
+        key_label = wx.StaticText(self.input_panel, label="이름")
+        value_label = wx.StaticText(self.input_panel, label="내용")
 
         # 라벨 폰트 설정
         label_font = wx.Font(
@@ -324,7 +243,7 @@ class UIManager:
 
         # 라벨 스타일 설정
         for label in [key_label, value_label]:
-            label.SetMinSize((43, -1))
+            label.SetMinSize(self.frame.FromDIP((43, -1)))
 
         # 입력 박스 레이아웃
         input_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -373,22 +292,9 @@ class UIManager:
         input_sizer.Add(input_box_key, 0, wx.EXPAND)
         input_sizer.Add(input_box_value, 0, wx.EXPAND | wx.TOP, section_gap)
         input_sizer.Add(button_sizer, 0, wx.EXPAND | wx.TOP, section_gap)
-        self.input_panel.SetSizer(input_sizer)
-
-        # 입력 패널 리사이즈 이벤트에 버튼 크기 재조정 핸들러 연결
-        self.input_panel.Bind(wx.EVT_SIZE, self._resize_input_buttons)
-
-    def _resize_input_buttons(self, event):
-        button_gap = 4
-        total_width = self.input_panel.GetClientSize().GetWidth()
-        button_width = max(40, int((total_width - (button_gap * 2)) / 3))
-        button_height = 26
-        for btn in [self.new_button, self.save_button, self.delete_button]:
-            btn.SetMinSize((button_width, button_height))
-            btn.SetMaxSize((button_width, button_height))
-            btn.SetSize(button_width, button_height)
-        self.input_panel.Layout()
-        event.Skip()
+        wrapper = wx.BoxSizer(wx.VERTICAL)
+        wrapper.Add(input_sizer, 1, wx.EXPAND | wx.ALL, self.frame.FromDIP(12))
+        self.input_panel.SetSizer(wrapper)
 
     def _apply_theme(self) -> None:
         """테마 적용"""
@@ -396,10 +302,18 @@ class UIManager:
 
         self.frame.SetBackgroundColour(colors["background"])
         self.main_panel.SetBackgroundColour(colors["background"])
-        self.input_panel.SetBackgroundColour(colors["background"])
+        self.input_panel.SetBackgroundColour(colors["surface"])
+        self.list_panel.SetBackgroundColour(colors["surface"])
+        self.title_bar.apply_theme(colors)
+        for panel in (self.input_panel, self.list_panel):
+            for child in panel.GetChildren():
+                if isinstance(child, wx.StaticText):
+                    child.SetBackgroundColour(colors["surface"])
+                    child.SetForegroundColour(colors["on_surface_variant"])
+        self.library_title.SetForegroundColour(colors["text"])
 
         # 기본 폰트 및 리스트 스타일
-        self.data_list_ctrl.SetBackgroundColour(colors["background"])
+        self.data_list_ctrl.SetBackgroundColour(colors["surface"])
         self.data_list_ctrl.SetForegroundColour(colors["on_surface"])
         self.data_list_ctrl.SetFont(self.font)
         self.key_text.SetFont(self.font)
@@ -413,7 +327,7 @@ class UIManager:
             text_ctrl.SetForegroundColour(colors["on_surface"])
 
         # 일반 버튼들 (추가/새로/저장)
-        for btn in [self.add_button, self.new_button, self.save_button]:
+        for btn in [self.add_button, self.save_button]:
             btn.SetBackgroundColour(colors["primary"])
             btn.SetForegroundColour(colors["on_primary"])
             try:
@@ -421,9 +335,10 @@ class UIManager:
             except Exception:
                 pass
 
-        # Delete 버튼만 다른 색상
-        self.delete_button.SetBackgroundColour(colors["danger"])
-        self.delete_button.SetForegroundColour(colors["on_primary"])
+        self.new_button.SetBackgroundColour(colors["surface_variant"])
+        self.new_button.SetForegroundColour(colors["text"])
+        self.delete_button.SetBackgroundColour(colors["surface_variant"])
+        self.delete_button.SetForegroundColour(colors["danger"])
         try:
             self.delete_button.SetFont(self.font.Bold())
         except Exception:
@@ -437,29 +352,15 @@ class UIManager:
         self.delete_button.Bind(wx.EVT_BUTTON, self.on_delete)
         self.frame.Bind(wx.EVT_SIZE, self.on_frame_resize)
         self.frame.Bind(wx.EVT_MAXIMIZE, self.on_frame_maximize)
+        self.frame.Bind(wx.EVT_CLOSE, self.on_close)
+        self.frame.Bind(wx.EVT_SYS_COLOUR_CHANGED, self.on_system_theme)
+        self.frame.Bind(wx.EVT_ACTIVATE, self.on_activate)
 
     def on_frame_resize(self, event) -> None:
-        """프레임 리사이즈 시 가로 폭을 항상 고정"""
-        if not self.frame or self._is_adjusting_frame_size:
-            event.Skip()
-            return
-
-        width, height = self.frame.GetSize()
-        if width != WINDOW_WIDTH:
-            self._is_adjusting_frame_size = True
-            try:
-                self.frame.SetSize(WINDOW_WIDTH, height)
-            finally:
-                self._is_adjusting_frame_size = False
-            return
-
         event.Skip()
 
     def on_frame_maximize(self, event) -> None:
-        """최대화(전체화면처럼 보이는 동작) 차단"""
-        if self.frame and self.frame.IsMaximized():
-            self.frame.Restore()
-        event.Skip(False)
+        event.Skip()
 
     def on_listctrl_resize(self, event):
         """리스트 컨트롤 크기 변경 시 컬럼 너비를 동적으로 조정"""
@@ -484,7 +385,14 @@ class UIManager:
         dc = wx.ClientDC(self.data_list_ctrl)
         dc.SetFont(self.data_list_ctrl.GetFont())
 
-        for item in self.data_manager.get_items():
+        items = self.data_manager.get_items()
+        self.library_title.SetLabel(f"저장한 텍스트 · {len(items)}")
+        self.library_hint.SetLabel(
+            "항목을 선택하면 바로 복사됩니다."
+            if items
+            else "아래 추가 버튼으로 첫 텍스트를 저장하세요."
+        )
+        for item in items:
             idx = self.data_list_ctrl.InsertItem(
                 self.data_list_ctrl.GetItemCount(), item["key"]
             )
@@ -590,6 +498,9 @@ class UIManager:
 
     def show_input_fields(self) -> None:
         """입력 필드 표시"""
+        self.input_panel.Show()
+        self.add_button.SetLabel("닫기")
+        self.main_panel.Layout()
         self.key_text.Show()
         self.value_text.Show()
         self.save_button.Show()
@@ -642,3 +553,59 @@ class UIManager:
         self.status_label.SetLabel("")
         self.status_label.SetForegroundColour(colors["on_surface_variant"])
         self.main_panel.Layout()
+
+    def _apply_backdrop(self):
+        dark = ThemeManager.preference == "dark" or (
+            ThemeManager.preference == "system" and ThemeManager.is_dark_mode()
+        )
+        self.backdrop_active = apply_backdrop(
+            self.frame.GetHandle(), self.appearance.values["backdrop"], dark
+        )
+        # Zero RGB GDI background exposes DWM in the gutters between panels.
+        color = (
+            wx.BLACK if self.backdrop_active else ThemeManager.get_background_color()
+        )
+        self.frame.SetBackgroundColour(color)
+        self.main_panel.SetBackgroundColour(color)
+        self.status_label.SetBackgroundColour(ThemeManager.get_background_color())
+        self.main_panel.Refresh()
+
+    def on_activate(self, event):
+        self._apply_backdrop()
+        event.Skip()
+
+    def on_system_theme(self, event):
+        self._apply_theme()
+        self._apply_backdrop()
+        event.Skip()
+
+    def on_close(self, event):
+        if self.status_clear_timer:
+            self.status_clear_timer.Stop()
+        event.Skip()
+
+    def on_settings(self, event):
+        from settings_dialog import SettingsDialog
+
+        dialog = SettingsDialog(
+            self.frame, self.appearance.values, self.backdrop_active
+        )
+        try:
+            if dialog.ShowModal() == wx.ID_OK:
+                try:
+                    self.appearance.save(dialog.values())
+                except OSError as error:
+                    wx.MessageBox(
+                        f"설정을 저장할 수 없습니다.\n{error}",
+                        "환경 설정",
+                        wx.OK | wx.ICON_ERROR,
+                    )
+                    return
+                ThemeManager.preference = self.appearance.values["theme"]
+                ThemeManager.panel_density = self.appearance.values["panel_density"]
+                self._apply_theme()
+                self._apply_backdrop()
+                self.frame.Refresh()
+                self.show_copy_status("환경 설정을 저장했습니다.", "success")
+        finally:
+            dialog.Destroy()
