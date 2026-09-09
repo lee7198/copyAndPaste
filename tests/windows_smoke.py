@@ -64,7 +64,19 @@ with tempfile.TemporaryDirectory() as directory:
                     assert rect.x >= border and rect.y >= border
                     assert rect.GetRight() < client.width - border
                     assert rect.GetBottom() < client.height - border
-                    assert manager.data_list_ctrl.GetSize().height > 50
+                    list_height = manager.data_list_ctrl.GetSize().height
+                    minimum_height = manager.frame.FromDIP(120)
+                    assert list_height >= minimum_height, (
+                        f"list={list_height}, required={minimum_height}, "
+                        f"requested={size}, client={client}, "
+                        f"minimum_client={manager.minimum_client_size}"
+                    )
+                    assert client.height >= manager.minimum_client_size.height
+                    assert manager.input_panel.IsShownOnScreen()
+                    assert (
+                        manager.input_panel.GetRect().GetBottom()
+                        < manager.main_panel.GetClientSize().height
+                    )
                     for button in manager.title_bar.buttons:
                         assert button.IsShownOnScreen()
                         assert (
