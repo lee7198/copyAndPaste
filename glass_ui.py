@@ -1,7 +1,9 @@
 """Alpha-painted window and a caption attached directly to its top edge."""
 
-from PySide6.QtCore import Qt, QRectF, QSize
-from PySide6.QtGui import QColor, QPainter, QPen
+from ctypes import wintypes
+
+from PySide6.QtCore import Qt, QRectF, QSize, QEvent, Signal
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QRegion
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
 
@@ -9,6 +11,8 @@ from icons import icon
 
 
 class GlassFrame(QWidget):
+    display_changed = Signal(bool)
+
     def __init__(self):
         super().__init__(
             None, Qt.Window | Qt.FramelessWindowHint | Qt.WindowMinMaxButtonsHint
@@ -17,13 +21,47 @@ class GlassFrame(QWidget):
         self.setWindowTitle("Copy & Paste")
         self.dark = False
         self.background_opacity = 0.52
-        self.setMinimumSize(340, 540)
-        self.resize(380, 620)
+        self.setMinimumSize(260, 540)
+        self.resize(260, 540)
+
+    def event(self, event):
+        result = super().event(event)
+        if event.type() in (
+            QEvent.DevicePixelRatioChange, QEvent.WinIdChange, QEvent.Show,
+            QEvent.WindowStateChange, QEvent.Resize,
+        ):
+            self.display_changed.emit(event.type() != QEvent.Resize)
+        return result
+
+    def nativeEvent(self, event_type, message):
+        if event_type == b"windows_generic_MSG":
+            native = wintypes.MSG.from_address(int(message))
+            if native.message == 0x031E:  # WM_DWMCOMPOSITIONCHANGED
+                self.display_changed.emit(True)
+        return super().nativeEvent(event_type, message)
+
+    def update_window_mask(self):
+        # Match the window region to the custom-painted surface.
+        if self.isMaximized():
+            self.clearMask()
+        else:
+            outline = QPainterPath()
+            outline.addRoundedRect(QRectF(self.rect()), 16, 16)
+            self.setMask(QRegion(outline.toFillPolygon().toPolygon()))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_window_mask()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            self.update_window_mask()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        color = QColor(32, 38, 34) if self.dark else QColor(235, 236, 228)
+        color = QColor(35, 35, 35) if self.dark else QColor(235, 235, 235)
         color.setAlphaF(self.background_opacity)
         painter.setBrush(color)
         painter.setPen(QPen(QColor(255, 255, 255, 105), 1))
@@ -78,11 +116,29 @@ class TitleBar(QWidget):
             button.setFixedSize(32, 30)
             button.setAccessibleName(name)
             button.setToolTip(name)
+            if label == "maximize":
+                self.maximize_button = button
             if name == "닫기":
                 button.setObjectName("close")
             button.clicked.connect(callback)
             row.addWidget(button)
             self.buttons.append(button)
+        frame.installEventFilter(self)
+        self.update_maximize_button()
+
+    def update_maximize_button(self):
+        maximized = self.frame.isMaximized()
+        name = "restore" if maximized else "maximize"
+        text = "창 복원" if maximized else "최대화"
+        self.maximize_button.setProperty("iconName", name)
+        self.maximize_button.setIcon(icon(name, self.frame.dark))
+        self.maximize_button.setToolTip(text)
+        self.maximize_button.setAccessibleName(text)
+
+    def eventFilter(self, watched, event):
+        if watched is self.frame and event.type() == QEvent.WindowStateChange:
+            self.update_maximize_button()
+        return super().eventFilter(watched, event)
 
     def toggle_maximize(self):
         (

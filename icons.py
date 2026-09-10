@@ -10,7 +10,7 @@ from PySide6.QtSvg import QSvgRenderer
 def icon(name, dark=False):
     root = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
     svg = (root / "assets" / "icons" / f"{name}.svg").read_text(encoding="utf-8")
-    svg = svg.replace("currentColor", "#f7f5f0" if dark else "#272c29")
+    svg = svg.replace("currentColor", "#f5f5f5" if dark else "#292929")
     renderer = QSvgRenderer(QByteArray(svg.encode()))
     pixmap = QPixmap(40, 40)
     pixmap.fill(Qt.transparent)
