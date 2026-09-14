@@ -90,45 +90,35 @@ with tempfile.TemporaryDirectory() as directory:
         app.processEvents()
         assert manager.title_bar.maximize_button.property("iconName") == "maximize"
         for theme in ("light", "dark"):
-            for backdrop in ("off", "blur", "acrylic"):
-                prefs.save(dict(prefs.values, theme=theme, backdrop=backdrop))
-                manager.apply_appearance()
-                for width, height in ((340, 540), (600, 800)):
-                    manager.frame.resize(width, height)
-                    app.processEvents()
-                    assert manager.data_list_ctrl.height() >= 120
-                    assert manager.title_bar.isVisible()
-                    assert (
-                        manager.delete_button.geometry().right()
-                        <= manager.input_panel.width()
-                    )
-                    rendered = manager.frame.grab().toImage()
-                    # Sample empty list surface: alpha is genuinely transparent,
-                    # while text/icons still contribute distinct pixel colors.
-                    point = manager.data_list_ctrl.mapTo(
-                        manager.frame, manager.data_list_ctrl.rect().center()
-                    )
-                    alpha = rendered.pixelColor(point).alpha()
-                    assert alpha == 255 if not manager.backdrop_active else 0 < alpha < 255, (
-                        backdrop,
-                        alpha,
-                    )
-                    header = rendered.copy(0, 0, width, 48)
-                    colors = {
-                        header.pixel(x, y)
-                        for x in range(15, 140)
-                        for y in range(10, 38)
-                    }
-                    assert len(colors) > 10, "Title text did not render"
+            prefs.save(dict(prefs.values, theme=theme, backdrop="off"))
+            manager.apply_appearance()
+            for width, height in ((340, 540), (600, 800)):
+                manager.frame.resize(width, height)
+                app.processEvents()
+                assert manager.data_list_ctrl.height() >= 120
+                assert manager.title_bar.isVisible()
+                assert manager.delete_button.geometry().right() <= manager.input_panel.width()
+                rendered = manager.frame.grab().toImage()
+                point = manager.data_list_ctrl.mapTo(
+                    manager.frame, manager.data_list_ctrl.rect().center()
+                )
+                assert rendered.pixelColor(point).alpha() == 255
+                header = rendered.copy(0, 0, width, 48)
+                colors = {
+                    header.pixel(x, y)
+                    for x in range(15, 140)
+                    for y in range(10, 38)
+                }
+                assert len(colors) > 10, "Title text did not render"
         manager.toggle_settings()
         assert manager.pages.currentIndex() == 1
-        manager.settings.opacity.setValue(30)
+        manager.settings.theme.button(1).setChecked(True)
         manager.settings.cancelled.emit()
-        assert prefs.values["window_opacity"] == 65
+        assert prefs.values["theme"] == "dark"
         manager.toggle_settings()
-        manager.settings.opacity.setValue(35)
+        manager.settings.theme.button(1).setChecked(True)
         manager.save_settings(manager.settings.values())
-        assert AppearanceSettings(prefs.path).values["window_opacity"] == 35
+        assert AppearanceSettings(prefs.path).values["theme"] == "light"
         row = manager.data_list_ctrl.item(0)
         manager.data_list_ctrl.itemWidget(row).findChild(QPushButton).click()
         manager.delete()
@@ -137,7 +127,7 @@ with tempfile.TemporaryDirectory() as directory:
             out = Path(os.environ["UI_SCREENSHOT_DIR"])
             out.mkdir(parents=True, exist_ok=True)
             manager.frame.grab().save(str(out / "empty.png"))
-        print("Qt alpha rendering / clipboard / CRUD / settings smoke passed")
+        print("Qt opaque rendering / clipboard / CRUD / settings smoke passed")
     finally:
         manager.frame.close()
         app.processEvents()

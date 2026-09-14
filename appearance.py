@@ -7,7 +7,8 @@ import tempfile
 
 DEFAULTS = {
     "theme": "system",
-    "backdrop": "acrylic",
+    # Native blur uses an undocumented Windows API; keep it opt-in.
+    "backdrop": "off",
     "panel_density": 80,
     "window_opacity": 65,
 }

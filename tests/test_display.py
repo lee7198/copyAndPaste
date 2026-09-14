@@ -29,7 +29,6 @@ class DisplayTests(unittest.TestCase):
         try:
             for group, key, values in (
                 (panel.theme, "theme", ("system", "light", "dark")),
-                (panel.backdrop, "backdrop", ("off", "blur", "acrylic")),
             ):
                 for index, value in enumerate(values):
                     button = group.button(index)
@@ -47,8 +46,8 @@ class DisplayTests(unittest.TestCase):
     def test_effect_recovery_font_and_screen_changes(self):
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "ui_manager.apply_backdrop", return_value=True
-        ) as backdrop, patch("ui_manager.apply_native_shadow", return_value=True):
+            "ui_manager.apply_native_shadow", return_value=True
+        ) as shadow:
             root = Path(directory)
             data = root / "data.json"
             data.write_text('{"list": [{"key": "Title", "value": "Value"}]}')
@@ -58,10 +57,10 @@ class DisplayTests(unittest.TestCase):
                 manager.edit_item(manager.data_list_ctrl.item(0))
                 manager.value_text.setText("Unsaved edit")
                 QTest.qWait(150)
-                previous = backdrop.call_count
+                previous = shadow.call_count
                 manager.frame.resize(400, 650)
                 QTest.qWait(150)
-                self.assertEqual(backdrop.call_count, previous)
+                self.assertEqual(shadow.call_count, previous)
                 for screen in app.screens() * 2:
                     manager.frame.move(screen.availableGeometry().topLeft() + QPoint(40, 40))
                     QTest.qWait(150)
@@ -70,14 +69,11 @@ class DisplayTests(unittest.TestCase):
                     for label in row.findChildren(QLabel):
                         self.assertGreaterEqual(label.height(), label.sizeHint().height())
                 self.assertEqual(QFontInfo(row.findChild(QLabel).font()).family(), "Noto Sans KR")
-                backdrop.return_value = False
                 app.sendEvent(manager.frame, QEvent(QEvent.DevicePixelRatioChange))
                 QTest.qWait(150)
-                self.assertEqual(manager.frame.background_opacity, 1.0)
-                backdrop.return_value = True
-                app.sendEvent(manager.frame, QEvent(QEvent.DevicePixelRatioChange))
-                QTest.qWait(150)
-                self.assertEqual(manager.frame.background_opacity, 0.65)
+                self.assertGreater(shadow.call_count, previous)
+                self.assertFalse(manager.frame.testAttribute(Qt.WA_TranslucentBackground))
+                self.assertFalse(manager.backdrop_active)
             finally:
                 manager.frame.close()
                 app.processEvents()

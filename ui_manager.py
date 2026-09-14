@@ -1,6 +1,6 @@
 """Qt presentation of the existing JSON clipboard data model."""
 
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -16,14 +16,13 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QSizeGrip,
     QSizePolicy,
-    QGraphicsOpacityEffect,
 )
 from icons import icon
 from appearance import AppearanceSettings
-from glass_ui import GlassCard, GlassFrame, TitleBar
+from glass_ui import GlassCard, GlassFrame, ListRow, TitleBar
 from settings_dialog import SettingsPanel
 from theme_manager import is_dark, stylesheet
-from windows_effects import apply_backdrop, apply_native_shadow
+from windows_effects import apply_native_shadow
 
 
 class UIManager:
@@ -100,30 +99,7 @@ class UIManager:
         root.addLayout(bottom)
         self.timer = QTimer(self.frame)
         self.timer.setSingleShot(True)
-        self.status_opacity = QGraphicsOpacityEffect(self.status_label)
-        self.status_label.setGraphicsEffect(self.status_opacity)
-        self.status_fade = QPropertyAnimation(
-            self.status_opacity, b"opacity", self.frame
-        )
-        self.status_fade.setDuration(350)
-        self.status_fade.setStartValue(1.0)
-        self.status_fade.setEndValue(0.0)
-        self.status_fade.setEasingCurve(QEasingCurve.InOutQuad)
-        self.status_fade.finished.connect(self.status_label.clear)
-        self.timer.timeout.connect(self.status_fade.start)
-        self.editor_pop = QPropertyAnimation(
-            self.input_panel, b"maximumHeight", self.frame
-        )
-        self.editor_pop.setDuration(180)
-        self.editor_pop.setEasingCurve(QEasingCurve.OutCubic)
-        self.editor_pop.finished.connect(
-            lambda: self.input_panel.setMaximumHeight(16777215)
-        )
-        self.settings_pop = QPropertyAnimation(self.settings, b"pos", self.frame)
-        self.settings_pop.setDuration(180)
-        self.settings_pop.setStartValue(QPoint(0, 10))
-        self.settings_pop.setEndValue(QPoint(0, 0))
-        self.settings_pop.setEasingCurve(QEasingCurve.OutCubic)
+        self.timer.timeout.connect(self.status_label.clear)
         self.add_button.clicked.connect(self.toggle_editor)
         self.save_button.clicked.connect(self.save)
         self.delete_button.clicked.connect(self.delete)
@@ -156,7 +132,7 @@ class UIManager:
             row = QListWidgetItem()
             row.setToolTip(item["value"])
             self.data_list_ctrl.addItem(row)
-            row_widget = QWidget(self.data_list_ctrl)
+            row_widget = ListRow(self.data_list_ctrl)
             row_layout = QHBoxLayout(row_widget)
             row_layout.setContentsMargins(8, 0, 4, 0)
             text_layout = QVBoxLayout()
@@ -177,6 +153,7 @@ class UIManager:
             menu_button.setFixedSize(24, 24)
             menu_button.setObjectName("itemMenu")
             menu_button.clicked.connect(lambda _, current=row: self.edit_item(current))
+            row_widget.clicked.connect(lambda current=row: self.activate_item(current))
             row_layout.addLayout(text_layout, 1)
             row_layout.addWidget(menu_button)
             row_widget.ensurePolished()
@@ -217,7 +194,6 @@ class UIManager:
             self.reset_editor()
             self.show_editor()
         else:
-            self.editor_pop.stop()
             self.input_panel.hide()
             self.add_button.setText("새 항목")
             self.add_button.setIcon(icon("plus", not self.frame.dark))
@@ -227,16 +203,13 @@ class UIManager:
     def show_editor(self):
         if not self.input_panel.isHidden():
             return
-        self.editor_pop.stop()
-        self.input_panel.setMaximumHeight(16777215)
-        height = self.input_panel.sizeHint().height()
-        self.editor_pop.setStartValue(0)
-        self.editor_pop.setEndValue(height)
-        self.input_panel.setMaximumHeight(0)
         self.input_panel.show()
         self.add_button.setText("닫기")
         self.add_button.setIcon(icon("close", not self.frame.dark))
-        self.editor_pop.start()
+
+    def activate_item(self, row):
+        self.data_list_ctrl.setCurrentItem(row)
+        self.select_item(row)
 
     def reset_editor(self):
         self.selected_index = None
@@ -292,8 +265,6 @@ class UIManager:
 
     def status(self, text, copied=False):
         self.timer.stop()
-        self.status_fade.stop()
-        self.status_opacity.setOpacity(1.0)
         green = "#69db96" if self.frame.dark else "#18783d"
         self.status_label.setStyleSheet(f"color: {green};" if copied else "")
         self.status_label.setText(text)
@@ -305,8 +276,6 @@ class UIManager:
         else:
             self.settings.load(self.appearance.values)
             self.pages.setCurrentIndex(1)
-            self.settings_pop.stop()
-            self.settings_pop.start()
 
     def save_settings(self, values):
         try:
@@ -323,9 +292,6 @@ class UIManager:
     def apply_appearance(self):
         values = self.appearance.values
         self.frame.dark = is_dark(values["theme"])
-        self.frame.background_opacity = (
-            1.0 if values["backdrop"] == "off" else values["window_opacity"] / 100
-        )
         self.frame.setStyleSheet(stylesheet(self.frame.dark))
         for button in self.title_bar.buttons:
             button.setIcon(icon(button.property("iconName"), self.frame.dark))
@@ -340,7 +306,6 @@ class UIManager:
         values = self.appearance.values
         key = (
             int(self.frame.winId()),
-            values["backdrop"],
             self.frame.dark,
             self.frame.devicePixelRatioF(),
             self.frame.screen().name(),
@@ -349,16 +314,6 @@ class UIManager:
         if key != self.effect_key:
             self.frame.update_window_mask()
             self.shadow_active = apply_native_shadow(int(self.frame.winId()))
-            self.backdrop_active = apply_backdrop(
-                int(self.frame.winId()), values["backdrop"], self.frame.dark
-            )
+            self.backdrop_active = False
             self.effect_key = key
-        self.frame.background_opacity = (
-            values["window_opacity"] / 100 if self.backdrop_active else 1.0
-        )
         self.frame.update()
-        self.settings.hint.setText(
-            "낮출수록 배경이 비칩니다. 글자는 선명하게 유지됩니다."
-            if self.backdrop_active
-            else "불투명 배경을 사용 중입니다."
-        )

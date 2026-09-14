@@ -22,6 +22,19 @@ class GlassCard(QFrame):
         self.setProperty("card", True)
 
 
+class ListRow(QWidget):
+    """A list item widget that keeps the row itself clickable."""
+
+    clicked = Signal()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
 class GlassFrame(QWidget):
     display_changed = Signal(bool)
 
@@ -34,10 +47,8 @@ class GlassFrame(QWidget):
             | Qt.WindowMinMaxButtonsHint
             | Qt.WindowCloseButtonHint,
         )
-        self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowTitle("Copy & Paste")
         self.dark = False
-        self.background_opacity = 0.65
         self.setMinimumSize(250, 600)
         self.resize(250, 600)
 
@@ -48,9 +59,8 @@ class GlassFrame(QWidget):
             QEvent.WinIdChange,
             QEvent.Show,
             QEvent.WindowStateChange,
-            QEvent.Resize,
         ):
-            self.display_changed.emit(event.type() != QEvent.Resize)
+            self.display_changed.emit(True)
         return result
 
     def nativeEvent(self, event_type, message):
@@ -61,11 +71,8 @@ class GlassFrame(QWidget):
         return super().nativeEvent(event_type, message)
 
     def update_window_mask(self):
-        self.clearMask()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.update_window_mask()
+        if not self.mask().isEmpty():
+            self.clearMask()
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -76,7 +83,6 @@ class GlassFrame(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         color = QColor(18, 18, 20) if self.dark else QColor(240, 240, 243)
-        color.setAlphaF(self.background_opacity)
         painter.setBrush(color)
         painter.setPen(QPen(QColor(255, 255, 255, 105), 1))
         painter.drawRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5))
@@ -94,8 +100,9 @@ class GlassFrame(QWidget):
             if pos.y() > self.height() - 7:
                 edges |= Qt.BottomEdge
             if edges and self.windowHandle():
-                self.windowHandle().startSystemResize(edges)
-                return
+                if self.windowHandle().startSystemResize(edges):
+                    event.accept()
+                    return
         super().mousePressEvent(event)
 
 
@@ -159,7 +166,10 @@ class TitleBar(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and self.frame.windowHandle():
-            self.frame.windowHandle().startSystemMove()
+            if self.frame.windowHandle().startSystemMove():
+                event.accept()
+                return
+        super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.LeftButton:

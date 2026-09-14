@@ -1,6 +1,6 @@
 """In-window settings page; only Save changes persistent preferences."""
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QRadioButton,
     QSizePolicy,
-    QSlider,
 )
 from appearance import DEFAULTS
 from glass_ui import GlassCard
@@ -29,18 +28,8 @@ class SettingsPanel(QWidget):
         heading.setStyleSheet("font-size: 16px; font-weight: 600;")
         layout.addWidget(heading)
         self.theme = QButtonGroup(self)
-        self.backdrop = QButtonGroup(self)
-        self.opacity = QSlider(Qt.Horizontal)
-        self.opacity.setRange(20, 90)
-        self.opacity.setAccessibleName("배경 불투명도")
-        self.opacity_label = QLabel()
-        self.opacity.valueChanged.connect(
-            lambda v: self.opacity_label.setText(f"배경 불투명도 · {v}%")
-        )
         for label, control, options in (
             (QLabel("테마"), self.theme, ("시스템", "라이트", "다크")),
-            (QLabel("배경 효과"), self.backdrop, ("끄기", "블러", "아크릴")),
-            (self.opacity_label, self.opacity, ()),
         ):
             card = GlassCard()
             group = QVBoxLayout(card)
@@ -62,7 +51,7 @@ class SettingsPanel(QWidget):
                 label.setBuddy(control)
                 group.addWidget(control)
             layout.addWidget(card)
-        self.hint = QLabel("낮출수록 배경이 비칩니다. 글자는 선명하게 유지됩니다.")
+        self.hint = QLabel()
         self.hint.setWordWrap(True)
         self.hint.setProperty("muted", True)
         layout.addWidget(self.hint)
@@ -84,16 +73,10 @@ class SettingsPanel(QWidget):
     def load(self, values):
         self.original = values.copy()
         self.theme.button(("system", "light", "dark").index(values["theme"])).setChecked(True)
-        self.backdrop.button(
-            ("off", "blur", "acrylic").index(values["backdrop"])
-        ).setChecked(True)
-        self.opacity.setValue(values["window_opacity"])
-        self.opacity_label.setText(f"배경 불투명도 · {self.opacity.value()}%")
 
     def values(self):
         return dict(
             self.original,
             theme=("system", "light", "dark")[self.theme.checkedId()],
-            backdrop=("off", "blur", "acrylic")[self.backdrop.checkedId()],
-            window_opacity=self.opacity.value(),
+            backdrop="off",
         )
