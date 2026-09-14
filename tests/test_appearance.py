@@ -93,7 +93,7 @@ class AppearanceTests(unittest.TestCase):
     def test_old_mica_settings_migrate_to_blur_with_real_opacity(self):
         values = normalize({"theme": "dark", "backdrop": "mica", "panel_density": 80})
         self.assertEqual(values["backdrop"], "blur")
-        self.assertEqual(values["window_opacity"], 52)
+        self.assertEqual(values["window_opacity"], 65)
         self.assertEqual(normalize({"window_opacity": 1})["window_opacity"], 20)
         self.assertEqual(normalize({"window_opacity": 100})["window_opacity"], 90)
 

@@ -9,7 +9,7 @@ DEFAULTS = {
     "theme": "system",
     "backdrop": "acrylic",
     "panel_density": 80,
-    "window_opacity": 52,
+    "window_opacity": 65,
 }
 
 

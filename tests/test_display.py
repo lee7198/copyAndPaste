@@ -5,16 +5,45 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from PySide6.QtCore import QEvent, QPoint
+from PySide6.QtCore import QEvent, QPoint, Qt
 from PySide6.QtGui import QFontInfo
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel
 from appearance import AppearanceSettings
 from data_manager import DataManager
 from ui_manager import UIManager
+from settings_dialog import SettingsPanel
+from appearance import DEFAULTS
+from theme_manager import stylesheet
 
 
 class DisplayTests(unittest.TestCase):
+    def test_settings_radio_choices(self):
+        app = QApplication.instance() or QApplication([])
+        panel = SettingsPanel()
+        panel.resize(306, 540)
+        panel.setStyleSheet(stylesheet(False))
+        panel.load(DEFAULTS)
+        panel.show()
+        app.processEvents()
+        try:
+            for group, key, values in (
+                (panel.theme, "theme", ("system", "light", "dark")),
+                (panel.backdrop, "backdrop", ("off", "blur", "acrylic")),
+            ):
+                for index, value in enumerate(values):
+                    button = group.button(index)
+                    button.setFocus()
+                    QTest.keyClick(button, Qt.Key_Space)
+                    self.assertEqual(panel.values()[key], value)
+                    self.assertEqual(sum(b.isChecked() for b in group.buttons()), 1)
+                    self.assertGreaterEqual(button.width(), button.minimumSizeHint().width())
+                    self.assertEqual(button.visibleRegion().boundingRect(), button.rect())
+            panel.load(DEFAULTS)
+            self.assertEqual(panel.values(), DEFAULTS)
+        finally:
+            panel.close()
+
     def test_effect_recovery_font_and_screen_changes(self):
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as directory, patch(
@@ -40,7 +69,7 @@ class DisplayTests(unittest.TestCase):
                     row = manager.data_list_ctrl.itemWidget(manager.data_list_ctrl.item(0))
                     for label in row.findChildren(QLabel):
                         self.assertGreaterEqual(label.height(), label.sizeHint().height())
-                    self.assertEqual(QFontInfo(row.findChild(QLabel).font()).family(), "Malgun Gothic")
+                self.assertEqual(QFontInfo(row.findChild(QLabel).font()).family(), "Noto Sans KR")
                 backdrop.return_value = False
                 app.sendEvent(manager.frame, QEvent(QEvent.DevicePixelRatioChange))
                 QTest.qWait(150)
@@ -48,7 +77,7 @@ class DisplayTests(unittest.TestCase):
                 backdrop.return_value = True
                 app.sendEvent(manager.frame, QEvent(QEvent.DevicePixelRatioChange))
                 QTest.qWait(150)
-                self.assertEqual(manager.frame.background_opacity, 0.52)
+                self.assertEqual(manager.frame.background_opacity, 0.65)
             finally:
                 manager.frame.close()
                 app.processEvents()

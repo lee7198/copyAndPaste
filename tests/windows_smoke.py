@@ -74,8 +74,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert manager.data_manager.get_items()[0]["value"] == "수정한 값"
         # No count label or nested header panel. Caption touches the frame edge.
         assert manager.title_bar.y() <= 1
-        assert not manager.frame.mask().contains(manager.frame.rect().topLeft())
-        assert manager.frame.mask().contains(manager.frame.rect().center())
+        assert manager.frame.mask().isEmpty()
         manager.frame.showMaximized()
         app.processEvents()
         assert manager.frame.mask().isEmpty()
@@ -84,7 +83,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert manager.title_bar.maximize_button.property("iconName") == "restore"
         manager.frame.showNormal()
         app.processEvents()
-        assert not manager.frame.mask().isEmpty()
+        assert manager.frame.mask().isEmpty()
         manager.frame.showMinimized()
         app.processEvents()
         manager.frame.showNormal()
@@ -125,7 +124,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert manager.pages.currentIndex() == 1
         manager.settings.opacity.setValue(30)
         manager.settings.cancelled.emit()
-        assert prefs.values["window_opacity"] == 52
+        assert prefs.values["window_opacity"] == 65
         manager.toggle_settings()
         manager.settings.opacity.setValue(35)
         manager.save_settings(manager.settings.values())

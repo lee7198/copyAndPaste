@@ -3,11 +3,23 @@
 from ctypes import wintypes
 
 from PySide6.QtCore import Qt, QRectF, QSize, QEvent, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QRegion
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import (
+    QWidget,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+)
 
 
 from icons import icon
+
+
+class GlassCard(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setProperty("card", True)
 
 
 class GlassFrame(QWidget):
@@ -15,20 +27,28 @@ class GlassFrame(QWidget):
 
     def __init__(self):
         super().__init__(
-            None, Qt.Window | Qt.FramelessWindowHint | Qt.WindowMinMaxButtonsHint
+            None,
+            Qt.Window
+            | Qt.FramelessWindowHint
+            | Qt.WindowSystemMenuHint
+            | Qt.WindowMinMaxButtonsHint
+            | Qt.WindowCloseButtonHint,
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowTitle("Copy & Paste")
         self.dark = False
-        self.background_opacity = 0.52
-        self.setMinimumSize(260, 540)
-        self.resize(260, 540)
+        self.background_opacity = 0.65
+        self.setMinimumSize(250, 600)
+        self.resize(250, 600)
 
     def event(self, event):
         result = super().event(event)
         if event.type() in (
-            QEvent.DevicePixelRatioChange, QEvent.WinIdChange, QEvent.Show,
-            QEvent.WindowStateChange, QEvent.Resize,
+            QEvent.DevicePixelRatioChange,
+            QEvent.WinIdChange,
+            QEvent.Show,
+            QEvent.WindowStateChange,
+            QEvent.Resize,
         ):
             self.display_changed.emit(event.type() != QEvent.Resize)
         return result
@@ -41,13 +61,7 @@ class GlassFrame(QWidget):
         return super().nativeEvent(event_type, message)
 
     def update_window_mask(self):
-        # Match the window region to the custom-painted surface.
-        if self.isMaximized():
-            self.clearMask()
-        else:
-            outline = QPainterPath()
-            outline.addRoundedRect(QRectF(self.rect()), 16, 16)
-            self.setMask(QRegion(outline.toFillPolygon().toPolygon()))
+        self.clearMask()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -61,15 +75,11 @@ class GlassFrame(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        color = QColor(35, 35, 35) if self.dark else QColor(235, 235, 235)
+        color = QColor(18, 18, 20) if self.dark else QColor(240, 240, 243)
         color.setAlphaF(self.background_opacity)
         painter.setBrush(color)
         painter.setPen(QPen(QColor(255, 255, 255, 105), 1))
-        painter.drawRoundedRect(
-            QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5),
-            0 if self.isMaximized() else 16,
-            0 if self.isMaximized() else 16,
-        )
+        painter.drawRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5))
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and not self.isMaximized():
@@ -111,7 +121,7 @@ class TitleBar(QWidget):
             button = QPushButton()
             button.setProperty("iconName", label)
             button.setIcon(icon(label))
-            button.setIconSize(QSize(16, 16))
+            button.setIconSize(QSize(20, 20))
             button.setProperty("caption", True)
             button.setFixedSize(32, 30)
             button.setAccessibleName(name)

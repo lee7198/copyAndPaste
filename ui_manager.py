@@ -1,6 +1,6 @@
 """Qt presentation of the existing JSON clipboard data model."""
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -16,10 +16,11 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QSizeGrip,
     QSizePolicy,
+    QGraphicsOpacityEffect,
 )
 from icons import icon
 from appearance import AppearanceSettings
-from glass_ui import GlassFrame, TitleBar
+from glass_ui import GlassCard, GlassFrame, TitleBar
 from settings_dialog import SettingsPanel
 from theme_manager import is_dark, stylesheet
 from windows_effects import apply_backdrop, apply_native_shadow
@@ -43,8 +44,8 @@ class UIManager:
         root.addWidget(self.pages, 1)
         self.main_panel = QWidget()
         content = QVBoxLayout(self.main_panel)
-        content.setContentsMargins(16, 10, 16, 0)
-        content.setSpacing(10)
+        content.setContentsMargins(10, 6, 10, 0)
+        content.setSpacing(6)
         self.data_list_ctrl = QListWidget()
         self.data_list_ctrl.setAccessibleName("저장한 텍스트")
         self.data_list_ctrl.setMinimumHeight(120)
@@ -57,10 +58,10 @@ class UIManager:
         self.empty_label.setProperty("muted", True)
         content.addWidget(self.empty_label)
         content.addWidget(self.data_list_ctrl, 1)
-        self.input_panel = QWidget()
+        self.input_panel = GlassCard()
         editor = QVBoxLayout(self.input_panel)
-        editor.setContentsMargins(0, 0, 0, 0)
-        editor.setSpacing(8)
+        editor.setContentsMargins(8, 8, 8, 8)
+        editor.setSpacing(6)
         self.key_text = QLineEdit()
         self.key_text.setPlaceholderText("이름")
         self.key_text.setAccessibleName("이름")
@@ -70,12 +71,12 @@ class UIManager:
         editor.addWidget(self.key_text)
         editor.addWidget(self.value_text)
         actions = QHBoxLayout()
-        self.new_button = QPushButton("NEW")
-        self.save_button = QPushButton("SAVE")
+        actions.setSpacing(6)
+        self.save_button = QPushButton("저장")
         self.save_button.setObjectName("primary")
-        self.delete_button = QPushButton("DELETE")
+        self.delete_button = QPushButton("삭제")
         self.delete_button.setObjectName("delete")
-        for button in (self.new_button, self.save_button, self.delete_button):
+        for button in (self.save_button, self.delete_button):
             actions.addWidget(button)
         editor.addLayout(actions)
         content.addWidget(self.input_panel)
@@ -84,12 +85,13 @@ class UIManager:
         self.status_label.setProperty("muted", True)
         self.status_label.setFixedHeight(18)
         content.addWidget(self.status_label)
-        self.add_button = QPushButton("NEW")
-        self.add_button.setMinimumHeight(40)
+        self.add_button = QPushButton("새 항목")
+        self.add_button.setMinimumHeight(30)
+        self.add_button.setObjectName("toggle")
         content.addWidget(self.add_button)
         self.pages.addWidget(self.main_panel)
         self.settings = SettingsPanel()
-        self.settings.setContentsMargins(16, 0, 16, 0)
+        self.settings.setContentsMargins(10, 0, 10, 0)
         self.pages.addWidget(self.settings)
         bottom = QHBoxLayout()
         bottom.setContentsMargins(0, 0, 5, 0)
@@ -98,9 +100,31 @@ class UIManager:
         root.addLayout(bottom)
         self.timer = QTimer(self.frame)
         self.timer.setSingleShot(True)
-        self.timer.timeout.connect(self.status_label.clear)
+        self.status_opacity = QGraphicsOpacityEffect(self.status_label)
+        self.status_label.setGraphicsEffect(self.status_opacity)
+        self.status_fade = QPropertyAnimation(
+            self.status_opacity, b"opacity", self.frame
+        )
+        self.status_fade.setDuration(350)
+        self.status_fade.setStartValue(1.0)
+        self.status_fade.setEndValue(0.0)
+        self.status_fade.setEasingCurve(QEasingCurve.InOutQuad)
+        self.status_fade.finished.connect(self.status_label.clear)
+        self.timer.timeout.connect(self.status_fade.start)
+        self.editor_pop = QPropertyAnimation(
+            self.input_panel, b"maximumHeight", self.frame
+        )
+        self.editor_pop.setDuration(180)
+        self.editor_pop.setEasingCurve(QEasingCurve.OutCubic)
+        self.editor_pop.finished.connect(
+            lambda: self.input_panel.setMaximumHeight(16777215)
+        )
+        self.settings_pop = QPropertyAnimation(self.settings, b"pos", self.frame)
+        self.settings_pop.setDuration(180)
+        self.settings_pop.setStartValue(QPoint(0, 10))
+        self.settings_pop.setEndValue(QPoint(0, 0))
+        self.settings_pop.setEasingCurve(QEasingCurve.OutCubic)
         self.add_button.clicked.connect(self.toggle_editor)
-        self.new_button.clicked.connect(self.new_item)
         self.save_button.clicked.connect(self.save)
         self.delete_button.clicked.connect(self.delete)
         self.key_text.returnPressed.connect(self.value_text.setFocus)
@@ -134,9 +158,9 @@ class UIManager:
             self.data_list_ctrl.addItem(row)
             row_widget = QWidget(self.data_list_ctrl)
             row_layout = QHBoxLayout(row_widget)
-            row_layout.setContentsMargins(12, 6, 4, 6)
+            row_layout.setContentsMargins(8, 0, 4, 0)
             text_layout = QVBoxLayout()
-            text_layout.setSpacing(3)
+            text_layout.setSpacing(0)
             for name, text in (
                 ("itemTitle", item["key"]),
                 ("itemValue", item["value"].replace(chr(10), " ")),
@@ -150,7 +174,7 @@ class UIManager:
             menu_button = QPushButton("⋯")
             menu_button.setAccessibleName(f"{item['key']} 항목 관리")
             menu_button.setToolTip("수정·삭제")
-            menu_button.setFixedSize(34, 34)
+            menu_button.setFixedSize(24, 24)
             menu_button.setObjectName("itemMenu")
             menu_button.clicked.connect(lambda _, current=row: self.edit_item(current))
             row_layout.addLayout(text_layout, 1)
@@ -167,8 +191,8 @@ class UIManager:
             widget = self.data_list_ctrl.itemWidget(row)
             widget.layout().invalidate()
             row_size = widget.sizeHint()
-            # Item borders (2px) and the bottom gap (8px) surround the widget.
-            row_size.setHeight(row_size.height() + 10)
+            # Selected item borders (4px) and the bottom gap (4px).
+            row_size.setHeight(row_size.height() + 8)
             row.setSizeHint(row_size)
         self.data_list_ctrl.doItemsLayout()
 
@@ -190,16 +214,31 @@ class UIManager:
 
     def toggle_editor(self):
         if self.input_panel.isHidden():
-            self.new_item()
-            self.input_panel.show()
-            self.add_button.setText("DONE")
+            self.reset_editor()
+            self.show_editor()
         else:
+            self.editor_pop.stop()
             self.input_panel.hide()
-            self.add_button.setText("NEW")
+            self.add_button.setText("새 항목")
+            self.add_button.setIcon(icon("plus", not self.frame.dark))
             self.selected_index = None
         self.key_text.setFocus()
 
-    def new_item(self):
+    def show_editor(self):
+        if not self.input_panel.isHidden():
+            return
+        self.editor_pop.stop()
+        self.input_panel.setMaximumHeight(16777215)
+        height = self.input_panel.sizeHint().height()
+        self.editor_pop.setStartValue(0)
+        self.editor_pop.setEndValue(height)
+        self.input_panel.setMaximumHeight(0)
+        self.input_panel.show()
+        self.add_button.setText("닫기")
+        self.add_button.setIcon(icon("close", not self.frame.dark))
+        self.editor_pop.start()
+
+    def reset_editor(self):
         self.selected_index = None
         self.data_list_ctrl.clearSelection()
         self.key_text.clear()
@@ -214,7 +253,7 @@ class UIManager:
             return
         item = items[index]
         QApplication.clipboard().setText(item["value"])
-        self.status("복사했습니다")
+        self.status("✓ 복사했습니다", copied=True)
 
     def edit_item(self, row):
         index = self.data_list_ctrl.row(row)
@@ -226,8 +265,7 @@ class UIManager:
         self.data_list_ctrl.setCurrentItem(row)
         self.key_text.setText(item["key"])
         self.value_text.setText(item["value"])
-        self.input_panel.show()
-        self.add_button.setText("완료")
+        self.show_editor()
         self.delete_button.setEnabled(True)
 
     def save(self):
@@ -239,7 +277,7 @@ class UIManager:
         else:
             success = self.data_manager.update_item(self.selected_index, key, value)
         if success:
-            self.new_item()
+            self.reset_editor()
             self.refresh_list()
         self.status("저장했습니다" if success else "저장할 수 없습니다")
 
@@ -248,11 +286,16 @@ class UIManager:
             return
         success = self.data_manager.delete_data(self.selected_index)
         if success:
-            self.new_item()
+            self.reset_editor()
             self.refresh_list()
         self.status("삭제했습니다" if success else "삭제할 수 없습니다")
 
-    def status(self, text):
+    def status(self, text, copied=False):
+        self.timer.stop()
+        self.status_fade.stop()
+        self.status_opacity.setOpacity(1.0)
+        green = "#69db96" if self.frame.dark else "#18783d"
+        self.status_label.setStyleSheet(f"color: {green};" if copied else "")
         self.status_label.setText(text)
         self.timer.start(2000)
 
@@ -262,6 +305,8 @@ class UIManager:
         else:
             self.settings.load(self.appearance.values)
             self.pages.setCurrentIndex(1)
+            self.settings_pop.stop()
+            self.settings_pop.start()
 
     def save_settings(self, values):
         try:
@@ -284,16 +329,23 @@ class UIManager:
         self.frame.setStyleSheet(stylesheet(self.frame.dark))
         for button in self.title_bar.buttons:
             button.setIcon(icon(button.property("iconName"), self.frame.dark))
-        self.add_button.setIcon(icon("plus", self.frame.dark))
+        self.add_button.setIcon(
+            icon("plus" if self.input_panel.isHidden() else "close", not self.frame.dark)
+        )
         self.frame.update()
         if self.frame.isVisible():
             self.apply_effect()
 
     def apply_effect(self):
         values = self.appearance.values
-        key = (int(self.frame.winId()), values["backdrop"], self.frame.dark,
-               self.frame.devicePixelRatioF(), self.frame.screen().name(),
-               self.frame.windowState())
+        key = (
+            int(self.frame.winId()),
+            values["backdrop"],
+            self.frame.dark,
+            self.frame.devicePixelRatioF(),
+            self.frame.screen().name(),
+            self.frame.windowState(),
+        )
         if key != self.effect_key:
             self.frame.update_window_mask()
             self.shadow_active = apply_native_shadow(int(self.frame.winId()))
